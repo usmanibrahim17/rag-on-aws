@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (git-ignored) and edit.
+name_prefix         = "rag-demo"
+monthly_budget_usd  = 20
+budget_alert_emails = ["you@example.com"]
