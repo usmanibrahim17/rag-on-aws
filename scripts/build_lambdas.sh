@@ -5,5 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="$(command -v python3 || command -v python)"
 
-# One zip for now; the query Lambda reuses the same app/ package in M3.
+# Both Lambdas ship the same app/ package (shared code in app/common); the handler setting
+# in Terraform picks which entry point runs. Separate zips keep deploys independent.
 "$PY" scripts/_build_zip.py dist/ingest.zip
+"$PY" scripts/_build_zip.py dist/query.zip

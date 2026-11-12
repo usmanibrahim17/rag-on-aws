@@ -2,3 +2,20 @@
 name_prefix         = "rag-demo"
 monthly_budget_usd  = 20
 budget_alert_emails = ["you@example.com"]
+
+# --- AI provider -------------------------------------------------------------------------
+# "gemini" now; switch to "bedrock" once Bedrock quota exists (then also set
+# embedding_dimension = 1024 and generation_model_id). Switching replaces the empty-or-stale
+# vector index, so re-ingest your documents afterwards.
+# NEVER use the Gemini free tier with client or private data.
+ai_provider         = "gemini"
+embedding_dimension = 768
+
+gemini_embedding_model        = "gemini-embedding-001"
+gemini_generation_model       = "gemini-3.5-flash-lite"
+gemini_api_key_parameter_name = "/rag-demo/gemini-api-key" # existing SecureString; not created by Terraform
+
+# Bedrock only (ignored while ai_provider = "gemini"). List the IDs your account can use:
+#   aws bedrock list-foundation-models --region us-east-1 --query "modelSummaries[].modelId"
+#   aws bedrock list-inference-profiles --region us-east-1 --query "inferenceProfileSummaries[].inferenceProfileId"
+# generation_model_id = "us.amazon.nova-lite-v1:0" # Amazon Nova Lite

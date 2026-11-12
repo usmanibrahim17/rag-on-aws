@@ -28,6 +28,36 @@ output "vector_index_arn" {
   value       = aws_s3vectors_index.chunks.index_arn
 }
 
+output "ingest_function_name" {
+  description = "Name of the ingest Lambda function."
+  value       = aws_lambda_function.ingest.function_name
+}
+
+output "ingest_log_group_name" {
+  description = "CloudWatch log group of the ingest Lambda."
+  value       = aws_cloudwatch_log_group.ingest.name
+}
+
+output "query_function_name" {
+  description = "Name of the query Lambda function."
+  value       = aws_lambda_function.query.function_name
+}
+
+output "query_log_group_name" {
+  description = "CloudWatch log group of the query Lambda."
+  value       = aws_cloudwatch_log_group.query.name
+}
+
+output "api_url" {
+  description = "Base URL of the HTTP API (default stage)."
+  value       = aws_apigatewayv2_api.ask.api_endpoint
+}
+
+output "ask_url" {
+  description = "Full URL of POST /ask."
+  value       = "${aws_apigatewayv2_api.ask.api_endpoint}/ask"
+}
+
 output "budget_name" {
   description = "Name of the monthly AWS Budget."
   value       = aws_budgets_budget.monthly.name

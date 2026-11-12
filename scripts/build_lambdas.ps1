@@ -3,6 +3,9 @@ $ErrorActionPreference = "Stop"
 
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
-# One zip for now; the query Lambda reuses the same app/ package in M3.
-python scripts/_build_zip.py dist/ingest.zip
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+# Both Lambdas ship the same app/ package (shared code in app/common); the handler setting
+# in Terraform picks which entry point runs. Separate zips keep deploys independent.
+foreach ($name in "ingest", "query") {
+    python scripts/_build_zip.py "dist/$name.zip"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}

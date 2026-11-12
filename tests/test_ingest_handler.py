@@ -66,6 +66,8 @@ class FakeS3:
 def aws(monkeypatch):
     monkeypatch.setenv("VECTOR_BUCKET_NAME", "vb")
     monkeypatch.setenv("VECTOR_INDEX_NAME", "idx")
+    monkeypatch.setenv("AI_PROVIDER", "bedrock")  # exercises the unchanged Titan path
+    monkeypatch.setenv("EMBEDDING_DIMENSION", "1024")
     monkeypatch.setenv("EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0")
     monkeypatch.setenv("CHUNK_SIZE", "500")
     monkeypatch.setenv("CHUNK_OVERLAP", "0")
@@ -200,6 +202,35 @@ def test_logs_are_structured_json_with_request_id_and_latency(aws, caplog):
     assert entry["status"] == "ingested" and entry["chunks"] == 1
     assert entry["embedding_tokens"] > 0
     assert isinstance(entry["latency_ms"], int)
+
+
+class FakeEmbedder:
+    """Stands in for a provider; records how it was called."""
+
+    def __init__(self):
+        self.calls = []
+
+    def embed_documents(self, texts):
+        self.calls.append(texts)
+        return [[0.25] * 1024 for _ in texts], 0
+
+    def embed_query(self, text):
+        raise AssertionError("ingest must embed documents, not queries")
+
+
+def test_ingest_uses_the_provider_with_one_batched_call(aws, monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+    monkeypatch.setenv("GEMINI_API_KEY_PARAM", "/rag-demo/gemini-api-key")
+    fake = FakeEmbedder()
+    with patch("app.ingest.handler.providers.get_embedder", return_value=fake) as factory:
+        result = upload(aws, "docs/a.md", doc_with_chunks(3))
+
+    assert result == {"processed": 1}
+    assert factory.call_args.args[0].ai_provider == "gemini"
+    assert len(fake.calls) == 1 and len(fake.calls[0]) == 3  # all chunks in a single batch
+    assert len(keys_for(aws, "docs/a.md")) == 3
+    assert aws.bedrock.texts == []  # Bedrock was never touched
 
 
 def test_missing_configuration_fails_with_a_clear_error(aws, monkeypatch):

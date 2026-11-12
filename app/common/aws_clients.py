@@ -11,7 +11,7 @@ from functools import lru_cache
 import boto3
 from botocore.config import Config
 
-EMBEDDING_DIMENSIONS = 1024
+TITAN_DEFAULT_DIMENSIONS = 1024
 EMBED_WORKERS = 5  # parallel Titan calls; adaptive retries below absorb throttling
 
 # S3 Vectors API limits per call.
@@ -38,6 +38,16 @@ def get_s3():
     return boto3.client("s3", config=_CLIENT_CONFIG)
 
 
+@lru_cache
+def get_ssm():
+    return boto3.client("ssm", config=_CLIENT_CONFIG)
+
+
+def read_secure_parameter(name: str) -> str:
+    """Read (and decrypt) one SSM SecureString. Callers must never log the returned value."""
+    return get_ssm().get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
+
+
 def _batches(items: list, size: int):
     for start in range(0, len(items), size):
         yield items[start : start + size]
@@ -54,11 +64,13 @@ def read_text_object(bucket: str, key: str) -> str:
 # --- Bedrock embeddings ---------------------------------------------------------------------
 
 
-def embed_text(text: str, model_id: str) -> tuple[list[float], int]:
-    """Embed one text with Titan v2. Returns (1024-dim normalized vector, input token count)."""
+def embed_text(
+    text: str, model_id: str, dimensions: int = TITAN_DEFAULT_DIMENSIONS
+) -> tuple[list[float], int]:
+    """Embed one text with Titan v2. Returns (normalized vector, input token count)."""
     response = get_bedrock().invoke_model(
         modelId=model_id,
-        body=json.dumps({"inputText": text, "dimensions": EMBEDDING_DIMENSIONS, "normalize": True}),
+        body=json.dumps({"inputText": text, "dimensions": dimensions, "normalize": True}),
         contentType="application/json",
         accept="application/json",
     )
@@ -66,7 +78,9 @@ def embed_text(text: str, model_id: str) -> tuple[list[float], int]:
     return payload["embedding"], payload.get("inputTextTokenCount", 0)
 
 
-def embed_many(texts: list[str], model_id: str) -> tuple[list[list[float]], int]:
+def embed_many(
+    texts: list[str], model_id: str, dimensions: int = TITAN_DEFAULT_DIMENSIONS
+) -> tuple[list[list[float]], int]:
     """Embed many texts (Titan takes one per call, so run a few in parallel).
 
     Returns vectors in input order plus the total input tokens.
@@ -74,7 +88,7 @@ def embed_many(texts: list[str], model_id: str) -> tuple[list[list[float]], int]
     if not texts:
         return [], 0
     with ThreadPoolExecutor(max_workers=EMBED_WORKERS) as pool:
-        results = list(pool.map(lambda t: embed_text(t, model_id), texts))
+        results = list(pool.map(lambda t: embed_text(t, model_id, dimensions), texts))
     return [vector for vector, _ in results], sum(tokens for _, tokens in results)
 
 
@@ -92,6 +106,39 @@ def put_vectors(bucket: str, index: str, vectors: list[dict]) -> int:
         get_s3vectors().put_vectors(vectorBucketName=bucket, indexName=index, vectors=batch)
         calls += 1
     return calls
+
+
+def query_vectors(bucket: str, index: str, vector: list[float], top_k: int) -> list[dict]:
+    """Nearest-neighbour search. Returns [{"key", "distance", "metadata"}], best (smallest) first.
+
+    returnMetadata=True needs s3vectors:GetVectors in addition to QueryVectors (see IAM).
+    """
+    response = get_s3vectors().query_vectors(
+        vectorBucketName=bucket,
+        indexName=index,
+        queryVector={"float32": vector},
+        topK=top_k,
+        returnMetadata=True,
+        returnDistance=True,
+    )
+    return response.get("vectors", [])
+
+
+def converse(
+    model_id: str, system_prompt: str, user_text: str, max_tokens: int
+) -> tuple[str, int, int]:
+    """One Bedrock Converse call. Returns (answer text, input tokens, output tokens)."""
+    response = get_bedrock().converse(
+        modelId=model_id,
+        system=[{"text": system_prompt}],
+        messages=[{"role": "user", "content": [{"text": user_text}]}],
+        # Low temperature: we want faithful answers from the sources, not creativity.
+        inferenceConfig={"maxTokens": max_tokens, "temperature": 0.2},
+    )
+    blocks = response["output"]["message"]["content"]
+    text = "".join(b["text"] for b in blocks if "text" in b).strip()
+    usage = response.get("usage", {})
+    return text, usage.get("inputTokens", 0), usage.get("outputTokens", 0)
 
 
 def delete_vectors(bucket: str, index: str, keys: list[str]) -> None:

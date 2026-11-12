@@ -7,7 +7,7 @@ instead of duplicating them, and a delete (or a shorter re-upload) removes the l
 import time
 from urllib.parse import unquote_plus
 
-from app.common import aws_clients
+from app.common import aws_clients, providers
 from app.common.chunking import chunk_markdown
 from app.common.config import Settings, is_ingestible_key, load_settings
 from app.common.logs import log_json
@@ -89,8 +89,9 @@ def _ingest_object(bucket: str, key: str, settings: Settings) -> dict:
     text = aws_clients.read_text_object(bucket, key)
     chunks = chunk_markdown(text, settings.chunk_size, settings.chunk_overlap)
 
-    vectors_data, tokens = aws_clients.embed_many(
-        [c.embed_text for c in chunks], settings.embedding_model_id
+    # One batched call per up-to-100 chunks with Gemini; parallel per-chunk calls with Titan.
+    vectors_data, tokens = providers.get_embedder(settings).embed_documents(
+        [c.embed_text for c in chunks]
     )
     vectors = [
         {

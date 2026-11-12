@@ -1,5 +1,7 @@
 # rag-on-aws — project brief for Claude Code
 
+STATUS: M2b deployed; M3 offline code done (Bedrock-only). AWS denied the Bedrock quota increase (all on-demand quotas are 0), so we are adding a pluggable AI provider: Gemini now, Bedrock later via one setting. Now on that provider abstraction (offline; nothing may call Gemini or AWS until approved).
+
 Read this file fully before any work. Follow the milestone order. Do one milestone per session unless told otherwise.
 
 ## What we are building
@@ -15,9 +17,12 @@ Flow: Markdown/text docs uploaded to S3 → ingest Lambda chunks + embeds them �
 |Region|`us-east-1` (widest Bedrock model access)|
 |Vector store|Amazon S3 Vectors (`aws\_s3vectors\_vector\_bucket`, `aws\_s3vectors\_index`). Requires Terraform AWS provider **>= 6.24**|
 |Pipeline|Own ingest/query Lambdas, NOT Bedrock managed Knowledge Bases|
-|Embeddings|`amazon.titan-embed-text-v2:0`, 1024 dims, normalized, cosine distance|
-|Generation|Bedrock Converse API; model ID is a Terraform variable, never hardcoded|
-|Runtime|Python 3.12, boto3 only (no LangChain/LlamaIndex — keep it explainable)|
+|AI provider|Pluggable via `AI_PROVIDER` (Terraform `ai_provider`): `gemini` now, `bedrock` later (blocked by 0 Bedrock quota). Everything else stays on AWS. Switching provider changes the embedding space, so the index must be recreated and docs re-ingested|
+|Embeddings|Cosine distance, normalized vectors. Dimension depends on provider and is a variable (`embedding_dimension`): **gemini** = `models/gemini-embedding-001`, 768 dims (L2-normalized by us); **bedrock** = `amazon.titan-embed-text-v2:0`, 1024 dims|
+|Generation|**gemini**: `generateContent` (model from a variable); **bedrock**: Converse API. Model IDs are Terraform variables, never hardcoded|
+|Secrets|The Gemini API key lives only in SSM Parameter Store (SecureString, `/rag-demo/gemini-api-key`), read at runtime. Never in code, Terraform, tfvars or state; the parameter is not managed by Terraform. Never log it|
+|Data privacy|**The Gemini free tier must never be used with client or private data** (free-tier inputs may be used by Google to improve products). Public/demo docs only; client work needs a paid-tier key or the Bedrock provider|
+|Runtime|Python 3.12, boto3 only (no LangChain/LlamaIndex — keep it explainable). **No Google SDK**: Gemini is called over HTTPS with `urllib` from the standard library, so the zip stays small and dependency-free|
 |API|API Gateway HTTP API, throttled (2 rps, burst 5), question max 500 chars, CORS for the demo UI|
 |IaC|Terraform. Reusable module in `infra/modules/rag\_stack`, demo env in `infra/envs/demo`|
 |CI|GitHub Actions: terraform fmt/validate, ruff, pytest. Deploy via GitHub OIDC role, no long-lived keys|
@@ -26,7 +31,7 @@ Flow: Markdown/text docs uploaded to S3 → ingest Lambda chunks + embeds them �
 ## Repo layout
 
 ```
-app/common/   chunking, bedrock + s3vectors clients, config
+app/common/   chunking, providers (bedrock + gemini), s3vectors clients, config
 app/ingest/   handler.py (S3 ObjectCreated → chunk → embed → put\_vectors)
 app/query/    handler.py (embed → query\_vectors → converse)
 evals/        questions.jsonl, run\_evals.py

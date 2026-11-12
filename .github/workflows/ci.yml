@@ -14,8 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: fmt
         run: terraform fmt -check -recursive infra
+      # The Lambda resource hashes dist/ingest.zip, so it must exist before validate.
+      - name: build lambda zips
+        run: bash scripts/build_lambdas.sh
       # -backend=false: no state backend or AWS credentials needed to validate.
       - name: validate module
         working-directory: infra/modules/rag_stack
