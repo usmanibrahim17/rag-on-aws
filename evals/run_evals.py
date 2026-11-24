@@ -22,7 +22,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 IDK_ANSWER = "I don't know based on the provided documents."  # must match app/query/handler.py
 # Phrases the model uses when it refuses on its own (the system prompt asks it to say this).
-LLM_REFUSAL_MARKERS = ("don't know", "don’t know", "do not know")
+LLM_REFUSAL_MARKERS = (
+    "don't know",
+    "don’t know",
+    "do not know",
+    "no information",
+    "not contain",
+    "doesn't contain",
+    "does not mention",
+    "doesn't mention",
+    "not mentioned",
+    "not covered",
+    "cannot find",
+    "can't find",
+)
 THRESHOLDS = [round(0.30 + 0.025 * i, 3) for i in range(13)]  # 0.300 ... 0.600
 DIFFICULTIES = ("direct", "understanding", "multi", "unanswerable")
 
@@ -114,11 +127,16 @@ def post_question(url: str, question: str, timeout: float) -> tuple[int, dict | 
         return status, None, elapsed
 
 
-def classify_refusal(answer: str) -> str:
-    """ "threshold" = the Lambda refused before calling the LLM; "llm" = the model refused."""
+def classify_refusal(answer: str, total_tokens: int) -> str:
+    """Return "threshold", "llm" or "none".
+
+    "threshold" = the Lambda refused before calling the LLM; "llm" = the model refused.
+    The model is told to say the exact same sentence, so the text alone can't tell them apart:
+    a real threshold refusal never calls the model, so it reports 0 tokens.
+    """
     text = (answer or "").strip()
     if text == IDK_ANSWER:
-        return "threshold"
+        return "threshold" if total_tokens == 0 else "llm"
     lowered = text.lower()
     if any(marker in lowered for marker in LLM_REFUSAL_MARKERS):
         return "llm"
@@ -145,7 +163,11 @@ def build_record(q: dict, status: int, body: dict | None, client_ms: int, attemp
         "source_keys": [s.get("key") for s in sources],
         "distances": distances,
         "top_distance": min((d for d in distances if d is not None), default=math.inf),
-        "refusal": classify_refusal(body.get("answer", "")) if ok else None,
+        "refusal": classify_refusal(
+            body.get("answer", ""), usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+        )
+        if ok
+        else None,
         "latency_ms": body.get("latency_ms", client_ms),
         "client_ms": client_ms,
         "input_tokens": usage.get("input_tokens", 0),
@@ -411,7 +433,8 @@ def markdown_row(records, summary, config, skipped_ids, skip_sources) -> str:
         _pct(r["hit@3"]),
         _pct(r["hit@5"]),
         _num(r["mrr"], 3),
-        f"{ref['correct_refusals']}/{ref['unanswerable_n']}",
+        f"{ref['correct_refusals']}/{ref['unanswerable_n']} "
+        f"(threshold {ref['correct_by_threshold']}, LLM {ref['correct_by_llm']})",
         f"{ref['wrong_refusals']}/{ref['answerable_n']}",
         _num(summary["latency_p50_ms"]),
         _num(summary["latency_p95_ms"]),

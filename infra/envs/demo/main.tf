@@ -25,6 +25,7 @@ module "rag_stack" {
   query_zip_path  = "${path.root}/../../../dist/query.zip"
 
   ingest_max_concurrency = var.ingest_max_concurrency
+  distance_threshold     = var.distance_threshold
 
   ai_provider                   = var.ai_provider
   embedding_dimension           = var.embedding_dimension

@@ -45,7 +45,7 @@ def rec(
         "source_keys": list(keys),
         "distances": distances,
         "top_distance": min(distances, default=math.inf),
-        "refusal": ev.classify_refusal(answer) if ok else None,
+        "refusal": ev.classify_refusal(answer, sum(tokens)) if ok else None,
         "latency_ms": latency,
         "client_ms": latency,
         "input_tokens": tokens[0],
@@ -177,24 +177,27 @@ def test_multi_doc_coverage_counts_expected_docs_in_top_five():
 
 
 @pytest.mark.parametrize(
-    ("answer", "expected"),
+    ("answer", "tokens", "expected"),
     [
-        (ev.IDK_ANSWER, "threshold"),
-        (f"  {ev.IDK_ANSWER}  ", "threshold"),
-        ("I don't know based on the provided documents, sorry.", "llm"),
-        ("I do not know the answer.", "llm"),
-        ("Use Path(ge=1) [1].", "none"),
-        ("", "none"),
-        (None, "none"),
+        (ev.IDK_ANSWER, 0, "threshold"),  # the Lambda refused: no model call, 0 tokens
+        (f"  {ev.IDK_ANSWER}  ", 0, "threshold"),
+        (ev.IDK_ANSWER, 371, "llm"),  # same sentence, but the model said it (tokens were spent)
+        ("I don't know based on the provided documents, sorry.", 400, "llm"),
+        ("I do not know the answer.", 400, "llm"),
+        ("Based on the provided documents, there is no information about rate limits.", 400, "llm"),
+        ("The sources do not contain details on WebSockets.", 400, "llm"),
+        ("Use Path(ge=1) [1].", 400, "none"),
+        ("", 0, "none"),
+        (None, 0, "none"),
     ],
 )
-def test_classify_refusal(answer, expected):
-    assert ev.classify_refusal(answer) == expected
+def test_classify_refusal(answer, tokens, expected):
+    assert ev.classify_refusal(answer, tokens) == expected
 
 
 def test_refusal_metrics_separate_correct_wrong_and_who_refused():
     records = [
-        rec("u1", answerable=False, answer=ev.IDK_ANSWER),  # correct, by threshold
+        rec("u1", answerable=False, answer=ev.IDK_ANSWER, tokens=(0, 0)),  # by threshold
         rec("u2", answerable=False, answer="Sorry, I don't know based on the provided documents."),
         rec("u3", answerable=False, answer="Paris is the capital."),  # should have refused
         rec("a1", answer="I don't know."),  # wrong refusal
@@ -309,8 +312,17 @@ def test_build_record_flattens_the_response():
 def test_build_record_for_errors_and_empty_sources():
     failed = ev.build_record(Q, 503, {"error": "busy"}, 100, 3)
     assert not failed["ok"] and failed["error"] == "busy" and failed["refusal"] is None
-    empty = ev.build_record(Q, 200, {**API_BODY, "sources": [], "answer": ev.IDK_ANSWER}, 90, 1)
+    refused = {
+        **API_BODY,
+        "sources": [],
+        "answer": ev.IDK_ANSWER,
+        "usage": {"input_tokens": 0, "output_tokens": 0},  # the Lambda never called the model
+    }
+    empty = ev.build_record(Q, 200, refused, 90, 1)
     assert empty["top_distance"] == math.inf and empty["refusal"] == "threshold"
+    # the same sentence with tokens spent was said by the model, not by the threshold
+    said_by_model = ev.build_record(Q, 200, {**refused, "usage": API_BODY["usage"]}, 90, 1)
+    assert said_by_model["refusal"] == "llm"
 
 
 def test_transient_failures_are_retried_then_succeed():

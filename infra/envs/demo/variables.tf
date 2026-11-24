@@ -10,6 +10,12 @@ variable "monthly_budget_usd" {
   default     = 20
 }
 
+variable "distance_threshold" {
+  description = "Refuse (\"I don't know\") without calling the LLM when the best cosine distance is above this. Tuned from evals/RESULTS.md: answerable questions topped out at 0.357, off-topic ones at 0.47-0.50."
+  type        = number
+  default     = 0.4
+}
+
 variable "ingest_max_concurrency" {
   description = "Max parallel ingest Lambdas (>= 2). Keep low on the Gemini free tier."
   type        = number
