@@ -62,6 +62,35 @@
     return url.replace(/([^:])\/\/+/g, "$1/"); // an empty slug must not leave "//"
   }
 
+  // Minimal, safe formatting of a model answer: ```fenced``` code blocks, `inline code` and
+  // **bold**. Everything is built from DOM nodes with textContent (never innerHTML), so the
+  // answer text cannot inject markup.
+  function renderInline(container, text) {
+    text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/).forEach(function (chunk) {
+      if (!chunk) return;
+      if (chunk.charAt(0) === "`" && chunk.length > 2) {
+        container.appendChild(el("code", { text: chunk.slice(1, -1) }));
+      } else if (chunk.indexOf("**") === 0 && chunk.length > 4) {
+        container.appendChild(el("strong", { text: chunk.slice(2, -2) }));
+      } else {
+        container.appendChild(document.createTextNode(chunk));
+      }
+    });
+  }
+
+  function renderRich(container, text) {
+    text.split("```").forEach(function (part, i) {
+      if (i % 2 === 1) {
+        // inside a fence: drop the optional language tag on the first line
+        var code = part.replace(/^[A-Za-z0-9_+.-]*\n/, "").replace(/\n+$/, "");
+        container.appendChild(el("pre", {}, [el("code", { text: code })]));
+      } else {
+        var prose = part.replace(/^\n+/, "").replace(/\n+$/, "");
+        if (prose) renderInline(container, prose);
+      }
+    });
+  }
+
   // The model (or the distance threshold) refused to answer from the documents.
   function isRefusal(data) {
     var text = (data.answer || "").toLowerCase();
@@ -98,6 +127,10 @@
       ".card .msg { max-width: 100%; align-self: stretch; }",
       ".sources { margin: 0; padding: 0 0 0 4px; list-style: none; font-size: 12px; color: #374151; display: flex; flex-direction: column; gap: 3px; }",
       ".sources a { color: #0f766e; text-decoration: underline; }",
+      ".sources .uncited { opacity: .6; }",
+      ".msg pre { margin: 6px 0; padding: 8px 10px; background: #111827; color: #f9fafb; border-radius: 6px; overflow-x: auto; white-space: pre; }",
+      ".msg code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: rgba(0,0,0,.08); padding: 0 3px; border-radius: 3px; }",
+      ".msg pre code { background: none; padding: 0; color: inherit; }",
       ".sources .n { display: inline-block; min-width: 1.6em; font-weight: 600; color: #111827; }",
       ".meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; color: #6b7280; }",
       ".pill { padding: 1px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-weight: 600; }",
@@ -151,7 +184,16 @@
 
     // Answer bubble + numbered, clickable sources + latency / refusal indicator.
     function addAnswer(data) {
-      var card = el("div", { class: "card" }, [el("div", { class: "msg bot", text: data.answer })]);
+      var bubbleEl = el("div", { class: "msg bot" });
+      renderRich(bubbleEl, data.answer || "");
+      var card = el("div", { class: "card" }, [bubbleEl]);
+
+      // Sources the answer actually cites ([1], [2]...) stay prominent; the rest are dimmed.
+      var cited = {};
+      (String(data.answer || "").match(/\[(\d+)\]/g) || []).forEach(function (m) {
+        cited[m.slice(1, -1)] = true;
+      });
+      var anyCited = Object.keys(cited).length > 0;
 
       var sources = data.sources || [];
       if (sources.length) {
@@ -159,7 +201,9 @@
         sources.forEach(function (s) {
           var label = (s.heading || s.key) + " (" + s.key + ")";
           var url = sourceUrl(s.key);
-          var item = el("li", {}, [el("span", { class: "n", text: "[" + s.n + "]" })]);
+          var item = el("li", { class: anyCited && !cited[String(s.n)] ? "uncited" : "" }, [
+            el("span", { class: "n", text: "[" + s.n + "]" }),
+          ]);
           if (url) {
             var link = el("a", { href: url, target: "_blank", rel: "noopener noreferrer", text: label });
             item.appendChild(link);

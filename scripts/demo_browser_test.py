@@ -88,6 +88,13 @@ def main() -> int:
             f"source is a clickable link ({href})",
             failures,
         )
+        raw_markdown = "```" in card.locator(".msg").inner_text()
+        check(not raw_markdown, "code fences are rendered, not shown as raw backticks", failures)
+        check(
+            card.locator(".sources li.uncited").count() <= sources.count() - 1,
+            "cited sources stay prominent",
+            failures,
+        )
         meta = card.locator(".meta").inner_text()
         check(
             "s" in meta and "tokens" in meta, f"latency/token badge is shown ({meta!r})", failures
