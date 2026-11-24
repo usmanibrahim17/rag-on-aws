@@ -54,10 +54,16 @@ data "aws_iam_policy_document" "ingest" {
     }
   }
 
-  # Poll the ingest queue (the Lambda event source mapping needs exactly these three).
+  # Poll the ingest queue (the Lambda event source mapping needs the first three) and release a
+  # throttled message early with ChangeMessageVisibility (backoff instead of the 30 min default).
   statement {
-    sid       = "ReadIngestQueue"
-    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    sid = "ReadIngestQueue"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:ChangeMessageVisibility",
+    ]
     resources = [aws_sqs_queue.ingest.arn]
   }
 

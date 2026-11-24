@@ -5,6 +5,7 @@ instead of duplicating them, and a delete (or a shorter re-upload) removes the l
 """
 
 import json
+import random
 import time
 from urllib.parse import unquote_plus
 
@@ -12,9 +13,19 @@ from app.common import aws_clients, documents, providers
 from app.common.chunking import chunk_markdown
 from app.common.config import Settings, collection_for_key, is_ingestible_key, load_settings
 from app.common.logs import log_json
+from app.common.providers import ProviderThrottledError
 
 # Filterable metadata is capped at 2 KB per vector in S3 Vectors; keep the heading well below it.
 MAX_HEADING_CHARS = 512
+
+# Outcomes of processing one S3 record.
+OK, FAILED, THROTTLED = "ok", "failed", "throttled"
+
+# Retry backoff for messages the AI provider throttled (HTTP 429): 60 s, 120 s, 240 s, 480 s,
+# then capped. The queue's own visibility timeout (30 min) is far too slow for rate limits,
+# which clear within a minute or two, so a throttled message is released earlier than that.
+RETRY_BASE_SECONDS = 60
+RETRY_MAX_SECONDS = 600
 
 
 def handler(event, context):
@@ -38,7 +49,7 @@ def handler(event, context):
                 processed += 1
             else:
                 batch_failures.append({"itemIdentifier": record["messageId"]})
-        elif _run_record(record, settings, request_id):
+        elif _run_record(record, settings, request_id) == OK:
             processed += 1
         else:
             direct_failures += 1
@@ -71,16 +82,62 @@ def _process_sqs_message(message: dict, settings: Settings, request_id: str | No
         return True
 
     # Run every inner record even if one fails: progress is kept, and retrying is idempotent.
-    results = [
+    outcomes = [
         _run_record(inner, settings, request_id, message_id) for inner in body.get("Records", [])
     ]
-    return all(results)
+    if THROTTLED in outcomes:
+        _retry_sooner(message, request_id)
+    return all(outcome == OK for outcome in outcomes)
+
+
+def retry_delay_seconds(receive_count: int) -> int:
+    """Seconds before a throttled message should be retried: exponential with jitter, capped.
+
+    receive_count 1 -> ~60 s, 2 -> ~120 s, 3 -> ~240 s, 4 -> ~480 s, 5+ -> up to 600 s. The jitter
+    (+/-20%) spreads retries out so the messages that were throttled together don't all come
+    back in the same second and get throttled again.
+    """
+    base = RETRY_BASE_SECONDS * 2 ** (max(receive_count, 1) - 1)
+    return min(RETRY_MAX_SECONDS, round(base * random.uniform(0.8, 1.2)))
+
+
+def queue_url_from_arn(arn: str) -> str:
+    """arn:aws:sqs:<region>:<account>:<name> -> https://sqs.<region>.amazonaws.com/<account>/<name>"""
+    _, _, _, region, account, name = arn.split(":", 5)
+    return f"https://sqs.{region}.amazonaws.com/{account}/{name}"
+
+
+def _retry_sooner(message: dict, request_id: str | None) -> None:
+    """Shorten the wait before SQS redelivers a throttled message (best effort).
+
+    The message is still reported as a batch item failure by the caller, so it will be
+    retried either way; if this call fails we only lose the shorter delay.
+    """
+    message_id = message.get("messageId")
+    try:
+        receive_count = int((message.get("attributes") or {}).get("ApproximateReceiveCount", 1))
+        delay = retry_delay_seconds(receive_count)
+        aws_clients.change_message_visibility(
+            queue_url_from_arn(message["eventSourceARN"]), message["receiptHandle"], delay
+        )
+    except Exception as exc:  # the default visibility timeout still applies
+        log_json(
+            "retry_delay_failed", request_id=request_id, message_id=message_id, error=repr(exc)
+        )
+        return
+    log_json(
+        "retry_scheduled",
+        request_id=request_id,
+        message_id=message_id,
+        receive_count=receive_count,
+        retry_in_seconds=delay,
+    )
 
 
 def _run_record(
     record: dict, settings: Settings, request_id: str | None, message_id: str | None = None
-) -> bool:
-    """Process one S3 event record; log the outcome; return False instead of raising."""
+) -> str:
+    """Process one S3 event record and log it. Returns OK, FAILED or THROTTLED, never raises."""
     started = time.monotonic()
     info = _record_info(record)
     if message_id:
@@ -95,7 +152,7 @@ def _run_record(
             error=repr(exc),
             **info,
         )
-        return False
+        return THROTTLED if isinstance(exc, ProviderThrottledError) else FAILED
     log_json(
         "record_processed",
         request_id=request_id,
@@ -103,7 +160,7 @@ def _run_record(
         **info,
         **result,
     )
-    return True
+    return OK
 
 
 def _elapsed_ms(started: float) -> int:

@@ -39,7 +39,7 @@ data "aws_iam_policy_document" "stack_boundary" {
 
   statement {
     sid       = "ConsumeIngestQueue"
-    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
     resources = [local.sqs_arn]
   }
 

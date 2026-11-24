@@ -39,8 +39,20 @@ def get_s3():
 
 
 @lru_cache
+def get_sqs():
+    return boto3.client("sqs", config=_CLIENT_CONFIG)
+
+
+@lru_cache
 def get_ssm():
     return boto3.client("ssm", config=_CLIENT_CONFIG)
+
+
+def change_message_visibility(queue_url: str, receipt_handle: str, seconds: int) -> None:
+    """Make an in-flight SQS message visible again after `seconds` (instead of the default)."""
+    get_sqs().change_message_visibility(
+        QueueUrl=queue_url, ReceiptHandle=receipt_handle, VisibilityTimeout=seconds
+    )
 
 
 def read_secure_parameter(name: str) -> str:

@@ -12,7 +12,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app.ingest.handler import handler
+from app.common.providers import ProviderThrottledError
+from app.ingest.handler import handler, queue_url_from_arn, retry_delay_seconds
 from tests.pdfs import make_pdf
 
 BUCKET = "docs-bucket"
@@ -55,6 +56,19 @@ class FakeS3Vectors:
             self.store.pop(k, None)
 
 
+class FakeSQS:
+    """Records ChangeMessageVisibility calls (or fails them, to test the best-effort path)."""
+
+    def __init__(self):
+        self.calls = []
+        self.error = None
+
+    def change_message_visibility(self, QueueUrl, ReceiptHandle, VisibilityTimeout):
+        if self.error:
+            raise self.error
+        self.calls.append((QueueUrl, ReceiptHandle, VisibilityTimeout))
+
+
 class FakeS3:
     def __init__(self):
         self.objects = {}
@@ -73,11 +87,14 @@ def aws(monkeypatch):
     monkeypatch.setenv("EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0")
     monkeypatch.setenv("CHUNK_SIZE", "500")
     monkeypatch.setenv("CHUNK_OVERLAP", "0")
-    fakes = SimpleNamespace(bedrock=FakeBedrock(), vectors=FakeS3Vectors(), s3=FakeS3())
+    fakes = SimpleNamespace(
+        bedrock=FakeBedrock(), vectors=FakeS3Vectors(), s3=FakeS3(), sqs=FakeSQS()
+    )
     with (
         patch("app.common.aws_clients.get_bedrock", return_value=fakes.bedrock),
         patch("app.common.aws_clients.get_s3vectors", return_value=fakes.vectors),
         patch("app.common.aws_clients.get_s3", return_value=fakes.s3),
+        patch("app.common.aws_clients.get_sqs", return_value=fakes.sqs),
     ):
         yield fakes
 
@@ -242,11 +259,22 @@ def test_corrupt_pdf_is_skipped_without_failing_or_retrying(aws):
 # --- SQS-wrapped S3 events (S3 -> SQS -> Lambda) --------------------------------------------
 
 
-def sqs_message(message_id, name=None, key=None, body=None):
+QUEUE_ARN = "arn:aws:sqs:us-east-1:123456789012:rag-demo-ingest"
+QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/123456789012/rag-demo-ingest"
+
+
+def sqs_message(message_id, name=None, key=None, body=None, receive_count=1):
     """One SQS record whose body is an S3 event notification (or the given raw body)."""
     if body is None:
         body = json.dumps(event(name, key))
-    return {"eventSource": "aws:sqs", "messageId": message_id, "body": body}
+    return {
+        "eventSource": "aws:sqs",
+        "eventSourceARN": QUEUE_ARN,
+        "messageId": message_id,
+        "receiptHandle": f"receipt-{message_id}",
+        "attributes": {"ApproximateReceiveCount": str(receive_count)},
+        "body": body,
+    }
 
 
 def run_sqs(*messages):
@@ -363,3 +391,122 @@ def test_missing_configuration_fails_with_a_clear_error(aws, monkeypatch):
     monkeypatch.delenv("EMBEDDING_MODEL_ID")
     with pytest.raises(Exception, match="EMBEDDING_MODEL_ID"):
         handler(event("ObjectCreated:Put", "docs/a.md"), None)
+
+
+# --- backoff for provider throttling (HTTP 429) -----------------------------------------------
+
+
+class ThrottledEmbedder:
+    def embed_documents(self, texts):
+        raise ProviderThrottledError("Gemini rate limit or quota exceeded (HTTP 429)")
+
+
+def run_throttled(aws, *messages):
+    aws.s3.objects[(BUCKET, "docs/a.md")] = "# T\n\nbody"
+    with patch("app.ingest.handler.providers.get_embedder", return_value=ThrottledEmbedder()):
+        return run_sqs(*messages)
+
+
+def test_throttled_message_gets_a_short_visibility_timeout_and_is_still_reported(aws):
+    result = run_throttled(
+        aws, sqs_message("m1", "ObjectCreated:Put", "docs/a.md", receive_count=2)
+    )
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m1"}]  # still retried by SQS
+    [(url, receipt, seconds)] = aws.sqs.calls
+    assert url == QUEUE_URL and receipt == "receipt-m1"
+    assert 96 <= seconds <= 144  # 2nd delivery: 120 s +/- 20% jitter
+
+
+@pytest.mark.parametrize(
+    ("receive_count", "low", "high"),
+    [(1, 48, 72), (2, 96, 144), (3, 192, 288), (4, 384, 576), (5, 480, 600), (50, 480, 600)],
+)
+def test_backoff_doubles_with_each_delivery_and_is_capped(receive_count, low, high):
+    for _ in range(200):  # jitter is random: check the bounds many times
+        assert low <= retry_delay_seconds(receive_count) <= high
+
+
+def test_backoff_uses_exact_values_without_jitter_and_never_exceeds_the_cap():
+    with patch("app.ingest.handler.random.uniform", return_value=1.0):
+        assert [retry_delay_seconds(n) for n in (1, 2, 3, 4, 5, 6)] == [60, 120, 240, 480, 600, 600]
+    with patch("app.ingest.handler.random.uniform", return_value=1.2):
+        assert retry_delay_seconds(6) == 600  # jitter can't push it past the cap
+
+
+def test_missing_receive_count_is_treated_as_the_first_delivery(aws):
+    message = sqs_message("m1", "ObjectCreated:Put", "docs/a.md")
+    del message["attributes"]
+    run_throttled(aws, message)
+    assert 48 <= aws.sqs.calls[0][2] <= 72
+
+
+def test_other_failures_keep_the_default_visibility_timeout(aws):
+    # docs/missing.md is not in the fake S3: a plain failure, not a provider throttle
+    result = run_sqs(sqs_message("m1", "ObjectCreated:Put", "docs/missing.md"))
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m1"}]
+    assert aws.sqs.calls == []
+
+
+def test_successful_messages_never_touch_visibility(aws):
+    aws.s3.objects[(BUCKET, "docs/a.md")] = "# T\n\nbody"
+    result = run_sqs(sqs_message("m1", "ObjectCreated:Put", "docs/a.md"))
+    assert result["batchItemFailures"] == [] and aws.sqs.calls == []
+
+
+def test_a_failing_visibility_call_does_not_break_the_failure_report(aws, caplog):
+    aws.sqs.error = RuntimeError("AccessDenied")
+
+    with caplog.at_level(logging.INFO, logger="rag"):
+        result = run_throttled(aws, sqs_message("m1", "ObjectCreated:Put", "docs/a.md"))
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m1"}]
+    events = [json.loads(r.getMessage())["event"] for r in caplog.records]
+    assert "retry_delay_failed" in events and "retry_scheduled" not in events
+
+
+def test_only_throttled_messages_in_a_batch_are_delayed(aws):
+    aws.s3.objects[(BUCKET, "docs/ok.md")] = "# T\n\nbody"
+    good = sqs_message("m-ok", "ObjectCreated:Put", "docs/ok.md")
+    throttled = sqs_message("m-slow", "ObjectCreated:Put", "docs/ok.md")
+
+    class OnlyTheSecondCallIsThrottled:
+        calls = 0
+
+        def embed_documents(self, texts):
+            OnlyTheSecondCallIsThrottled.calls += 1
+            if OnlyTheSecondCallIsThrottled.calls == 2:
+                raise ProviderThrottledError("429")
+            return [[0.1] * 1024 for _ in texts], 0
+
+    with patch(
+        "app.ingest.handler.providers.get_embedder", return_value=OnlyTheSecondCallIsThrottled()
+    ):
+        result = run_sqs(good, throttled)
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m-slow"}]
+    assert [c[1] for c in aws.sqs.calls] == ["receipt-m-slow"]
+
+
+def test_retry_scheduled_is_logged_with_the_delay(aws, caplog):
+    with caplog.at_level(logging.INFO, logger="rag"):
+        run_throttled(aws, sqs_message("m1", "ObjectCreated:Put", "docs/a.md", receive_count=3))
+    entry = next(
+        json.loads(r.getMessage())
+        for r in caplog.records
+        if json.loads(r.getMessage())["event"] == "retry_scheduled"
+    )
+    assert entry["receive_count"] == 3 and 192 <= entry["retry_in_seconds"] <= 288
+
+
+def test_queue_url_is_derived_from_the_queue_arn():
+    assert queue_url_from_arn(QUEUE_ARN) == QUEUE_URL
+
+
+def test_direct_s3_events_do_not_use_sqs_visibility(aws):
+    aws.s3.objects[(BUCKET, "docs/a.md")] = "# T\n\nbody"
+    with patch("app.ingest.handler.providers.get_embedder", return_value=ThrottledEmbedder()):
+        with pytest.raises(RuntimeError, match="1 of 1"):
+            handler(event("ObjectCreated:Put", "docs/a.md"), None)
+    assert aws.sqs.calls == []
