@@ -33,6 +33,11 @@ def ask(page: Page, question: str) -> object:
     return page.locator(".card").nth(cards_before)
 
 
+def show_start(card) -> None:
+    """Scroll the chat so the top of this answer shows (long answers otherwise show the end)."""
+    card.evaluate("el => { el.parentElement.scrollTop = el.offsetTop - 8; }")
+
+
 def check(condition: bool, message: str, failures: list[str]) -> None:
     print(("  ok   " if condition else "  FAIL ") + message)
     if not condition:
@@ -99,6 +104,7 @@ def main() -> int:
         check(
             "s" in meta and "tokens" in meta, f"latency/token badge is shown ({meta!r})", failures
         )
+        show_start(card)
         page.screenshot(path=str(args.out / "demo-answer.png"))
 
         refusal = ask(page, OFF_TOPIC)
@@ -112,6 +118,7 @@ def main() -> int:
             "refusal text is shown",
             failures,
         )
+        show_start(refusal)
         page.screenshot(path=str(args.out / "demo-refusal.png"))
 
         print("company support tab")
@@ -137,6 +144,7 @@ def main() -> int:
             f"business source links to GitHub ({link})",
             failures,
         )
+        show_start(card)
         page.screenshot(path=str(args.out / "demo-business.png"))
 
         print("mobile layout")
