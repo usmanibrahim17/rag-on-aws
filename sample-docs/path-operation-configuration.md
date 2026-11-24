@@ -82,7 +82,6 @@ async def read_users():
 
 They will be added to the OpenAPI schema and used by the automatic documentation interfaces:
 
-<img src="/img/tutorial/path-operation-configuration/image01.png">
 
 ### Tags with Enums { #tags-with-enums }
 
@@ -145,7 +144,7 @@ async def create_item(item: Item) -> Item:
 
 ## Description from docstring { #description-from-docstring }
 
-As descriptions tend to be long and cover multiple lines, you can declare the *path operation* description in the function <dfn title="a multi-line string as the first expression inside a function (not assigned to any variable) used for documentation">docstring</dfn> and **FastAPI** will read it from there.
+As descriptions tend to be long and cover multiple lines, you can declare the *path operation* description in the function docstring and **FastAPI** will read it from there.
 
 You can write [Markdown](https://en.wikipedia.org/wiki/Markdown) in the docstring, it will be interpreted and displayed correctly (taking into account docstring indentation).
 
@@ -180,7 +179,6 @@ async def create_item(item: Item) -> Item:
 
 It will be used in the interactive docs:
 
-<img src="/img/tutorial/path-operation-configuration/image02.png">
 
 ## Response description { #response-description }
 
@@ -233,11 +231,10 @@ So, if you don't provide one, **FastAPI** will automatically generate one of "Su
 
 ///
 
-<img src="/img/tutorial/path-operation-configuration/image03.png">
 
 ## Deprecate a *path operation* { #deprecate-a-path-operation }
 
-If you need to mark a *path operation* as <dfn title="obsolete, recommended not to use it">deprecated</dfn>, but without removing it, pass the parameter `deprecated`:
+If you need to mark a *path operation* as deprecated, but without removing it, pass the parameter `deprecated`:
 
 ```python
 from fastapi import FastAPI
@@ -262,11 +259,9 @@ async def read_elements():
 
 It will be clearly marked as deprecated in the interactive docs:
 
-<img src="/img/tutorial/path-operation-configuration/image04.png">
 
 Check how deprecated and non-deprecated *path operations* look:
 
-<img src="/img/tutorial/path-operation-configuration/image05.png">
 
 ## Recap { #recap }
 

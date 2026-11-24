@@ -107,7 +107,6 @@ It will then start the server with your **FastAPI** code, stop at your breakpoin
 
 Here's how it might look:
 
-<img src="/img/tutorial/debugging/image01.png">
 
 ---
 
@@ -122,4 +121,3 @@ It will then start the server with your **FastAPI** code, stop at your breakpoin
 
 Here's how it might look:
 
-<img src="/img/tutorial/debugging/image02.png">

@@ -46,7 +46,6 @@ async def read_items(cookies: Annotated[Cookies, Cookie()]):
 
 You can see the defined cookies in the docs UI at `/docs`:
 
-<img src="/img/tutorial/cookie-param-models/image01.png">
 
 /// note
 
@@ -62,7 +61,7 @@ But even if you **fill the data** and click "Execute", because the docs UI works
 
 In some special use cases (probably not very common), you might want to **restrict** the cookies that you want to receive.
 
-Your API now has the power to control its own <dfn title="This is a joke, just in case. It has nothing to do with cookie consents, but it's funny that even the API can now reject the poor cookies. Have a cookie. 🍪">cookie consent</dfn>. 🤪🍪
+Your API now has the power to control its own cookie consent. 🤪🍪
 
 You can use Pydantic's model configuration to `forbid` any `extra` fields:
 
@@ -90,9 +89,9 @@ async def read_items(cookies: Annotated[Cookies, Cookie()]):
 
 If a client tries to send some **extra cookies**, they will receive an **error** response.
 
-Poor cookie banners with all their effort to get your consent for the <dfn title="This is another joke. Don't pay attention to me. Have some coffee for your cookie. ☕">API to reject it</dfn>. 🍪
+Poor cookie banners with all their effort to get your consent for the API to reject it. 🍪
 
-For example, if the client tries to send a `santa_tracker` cookie with a value of `good-list-please`, the client will receive an **error** response telling them that the `santa_tracker` <dfn title="Santa disapproves the lack of cookies. 🎅 Okay, no more cookie jokes.">cookie is not allowed</dfn>:
+For example, if the client tries to send a `santa_tracker` cookie with a value of `good-list-please`, the client will receive an **error** response telling them that the `santa_tracker` cookie is not allowed:
 
 ```json
 {
@@ -142,4 +141,4 @@ The same rules for defaults, extra fields, and OpenAPI apply as for [optional qu
 
 ## Summary { #summary }
 
-You can use **Pydantic models** to declare <dfn title="Have a last cookie before you go. 🍪">**cookies**</dfn> in **FastAPI**. 😎
+You can use **Pydantic models** to declare **cookies** in **FastAPI**. 😎

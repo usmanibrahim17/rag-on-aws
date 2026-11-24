@@ -52,6 +52,13 @@ data "aws_iam_policy_document" "ingest" {
     }
   }
 
+  # Poll the ingest queue (the Lambda event source mapping needs exactly these three).
+  statement {
+    sid       = "ReadIngestQueue"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    resources = [aws_sqs_queue.ingest.arn]
+  }
+
   # Write/probe/delete vectors in our one index. The code never lists, so no ListVectors.
   statement {
     sid       = "WriteVectors"

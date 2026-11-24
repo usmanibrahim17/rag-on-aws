@@ -128,27 +128,23 @@ With just that Python type declaration, **FastAPI** will:
 * Give you the received data in the parameter `item`.
     * As you declared it in the function to be of type `Item`, you will also have all the editor support (completion, etc) for all of the attributes and their types.
 * Generate [JSON Schema](https://json-schema.org) definitions for your model, you can also use them anywhere else you like if it makes sense for your project.
-* Those schemas will be part of the generated OpenAPI schema, and used by the automatic documentation <abbr title="User Interfaces">UIs</abbr>.
+* Those schemas will be part of the generated OpenAPI schema, and used by the automatic documentation UIs.
 
 ## Automatic docs { #automatic-docs }
 
 The JSON Schemas of your models will be part of your OpenAPI generated schema, and will be shown in the interactive API docs:
 
-<img src="/img/tutorial/body/image01.png">
 
 And will also be used in the API docs inside each *path operation* that needs them:
 
-<img src="/img/tutorial/body/image02.png">
 
 ## Editor support { #editor-support }
 
 In your editor, inside your function you will get type hints and completion everywhere (this wouldn't happen if you received a `dict` instead of a Pydantic model):
 
-<img src="/img/tutorial/body/image03.png">
 
 You also get error checks for incorrect type operations:
 
-<img src="/img/tutorial/body/image04.png">
 
 This is not by chance, the whole framework was built around that design.
 
@@ -160,7 +156,6 @@ The previous screenshots were taken with [Visual Studio Code](https://code.visua
 
 But you would get the same editor support with [PyCharm](https://www.jetbrains.com/pycharm/) and most of the other Python editors:
 
-<img src="/img/tutorial/body/image05.png">
 
 /// tip
 

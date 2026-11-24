@@ -103,7 +103,7 @@ Any request with an `Origin` header. In this case the middleware will pass the r
 
 ## More info { #more-info }
 
-For more info about <abbr title="Cross-Origin Resource Sharing">CORS</abbr>, check the [Mozilla CORS documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS).
+For more info about CORS, check the [Mozilla CORS documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS).
 
 /// note | Technical Details
 

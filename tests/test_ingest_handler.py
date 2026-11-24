@@ -204,6 +204,97 @@ def test_logs_are_structured_json_with_request_id_and_latency(aws, caplog):
     assert isinstance(entry["latency_ms"], int)
 
 
+# --- SQS-wrapped S3 events (S3 -> SQS -> Lambda) --------------------------------------------
+
+
+def sqs_message(message_id, name=None, key=None, body=None):
+    """One SQS record whose body is an S3 event notification (or the given raw body)."""
+    if body is None:
+        body = json.dumps(event(name, key))
+    return {"eventSource": "aws:sqs", "messageId": message_id, "body": body}
+
+
+def run_sqs(*messages):
+    return handler({"Records": list(messages)}, SimpleNamespace(aws_request_id="req-sqs"))
+
+
+def test_sqs_create_event_ingests_and_reports_no_failures(aws):
+    aws.s3.objects[(BUCKET, "docs/a.md")] = doc_with_chunks(2)
+
+    result = run_sqs(sqs_message("m1", "ObjectCreated:Put", "docs/a.md"))
+
+    assert result["batchItemFailures"] == [] and result["processed"] == 1
+    assert keys_for(aws, "docs/a.md") == ["docs/a.md#0", "docs/a.md#1"]
+
+
+def test_sqs_delete_event_removes_vectors(aws):
+    upload(aws, "docs/a.md", doc_with_chunks(3))
+
+    result = run_sqs(sqs_message("m1", "ObjectRemoved:DeleteMarkerCreated", "docs/a.md"))
+
+    assert result["batchItemFailures"] == []
+    assert keys_for(aws, "docs/a.md") == []
+
+
+def test_s3_test_event_is_skipped_and_acknowledged(aws, caplog):
+    test_event = json.dumps({"Service": "Amazon S3", "Event": "s3:TestEvent", "Bucket": BUCKET})
+
+    with caplog.at_level(logging.INFO, logger="rag"):
+        result = run_sqs(sqs_message("m1", body=test_event))
+
+    assert result["batchItemFailures"] == []  # acknowledged, so SQS deletes it
+    assert aws.vectors.store == {} and aws.bedrock.texts == []
+    entry = json.loads(caplog.records[-1].getMessage())
+    assert entry["event"] == "message_skipped" and entry["reason"] == "s3:TestEvent"
+
+
+def test_only_the_failing_message_is_reported_and_others_succeed(aws):
+    aws.s3.objects[(BUCKET, "docs/ok1.md")] = "# T\n\nbody one"
+    aws.s3.objects[(BUCKET, "docs/ok2.md")] = "# T\n\nbody two"
+    # docs/missing.md is not in the fake S3, so reading it raises
+
+    result = run_sqs(
+        sqs_message("m-ok1", "ObjectCreated:Put", "docs/ok1.md"),
+        sqs_message("m-bad", "ObjectCreated:Put", "docs/missing.md"),
+        sqs_message("m-ok2", "ObjectCreated:Put", "docs/ok2.md"),
+    )  # must not raise
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m-bad"}]
+    assert result["processed"] == 2
+    assert keys_for(aws, "docs/ok1.md") and keys_for(aws, "docs/ok2.md")
+
+
+@pytest.mark.parametrize("body", ["not json", "[1, 2]", ""])
+def test_unparseable_body_is_reported_as_a_failure(aws, body):
+    result = run_sqs(sqs_message("m-bad", body=body))
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m-bad"}]
+
+
+def test_failure_log_includes_the_message_id(aws, caplog):
+    with caplog.at_level(logging.INFO, logger="rag"):
+        run_sqs(sqs_message("m-bad", "ObjectCreated:Put", "docs/missing.md"))
+    entry = json.loads(caplog.records[-1].getMessage())
+    assert entry["event"] == "record_failed" and entry["message_id"] == "m-bad"
+    assert entry["request_id"] == "req-sqs" and entry["source_key"] == "docs/missing.md"
+
+
+def test_message_with_several_records_fails_if_any_record_fails(aws):
+    aws.s3.objects[(BUCKET, "docs/ok.md")] = "# T\n\nbody"
+    body = json.dumps(
+        {
+            "Records": [
+                *event("ObjectCreated:Put", "docs/missing.md")["Records"],
+                *event("ObjectCreated:Put", "docs/ok.md")["Records"],
+            ]
+        }
+    )
+
+    result = run_sqs(sqs_message("m1", body=body))
+
+    assert result["batchItemFailures"] == [{"itemIdentifier": "m1"}]
+    assert keys_for(aws, "docs/ok.md") == ["docs/ok.md#0"]  # the good record was still ingested
+
+
 class FakeEmbedder:
     """Stands in for a provider; records how it was called."""
 

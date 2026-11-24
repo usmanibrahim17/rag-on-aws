@@ -9,12 +9,12 @@ You can set the following fields that are used in the OpenAPI specification and 
 | Parameter | Type | Description |
 |------------|------|-------------|
 | `title` | `str` | The title of the API. |
-| `summary` | `str` | A short summary of the API. <small>Available since OpenAPI 3.1.0, FastAPI 0.99.0.</small> |
+| `summary` | `str` | A short summary of the API. Available since OpenAPI 3.1.0, FastAPI 0.99.0. |
 | `description` | `str` | A short description of the API. It can use Markdown. |
 | `version` | `str` | The version of the API. This is the version of your own application, not of OpenAPI. For example `2.5.0`. |
 | `terms_of_service` | `str` | A URL to the Terms of Service for the API. If provided, this has to be a URL. |
-| `contact` | `dict` | The contact information for the exposed API. It can contain several fields. <details><summary><code>contact</code> fields</summary><table><thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code>name</code></td><td><code>str</code></td><td>The identifying name of the contact person/organization.</td></tr><tr><td><code>url</code></td><td><code>str</code></td><td>The URL pointing to the contact information. MUST be in the format of a URL.</td></tr><tr><td><code>email</code></td><td><code>str</code></td><td>The email address of the contact person/organization. MUST be in the format of an email address.</td></tr></tbody></table></details> |
-| `license_info` | `dict` | The license information for the exposed API. It can contain several fields. <details><summary><code>license_info</code> fields</summary><table><thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code>name</code></td><td><code>str</code></td><td><strong>REQUIRED</strong> (if a <code>license_info</code> is set). The license name used for the API.</td></tr><tr><td><code>identifier</code></td><td><code>str</code></td><td>An [SPDX](https://spdx.org/licenses/) license expression for the API. The <code>identifier</code> field is mutually exclusive of the <code>url</code> field. <small>Available since OpenAPI 3.1.0, FastAPI 0.99.0.</small></td></tr><tr><td><code>url</code></td><td><code>str</code></td><td>A URL to the license used for the API. MUST be in the format of a URL.</td></tr></tbody></table></details> |
+| `contact` | `dict` | The contact information for the exposed API. It can contain several fields. <details><summary>contact fields</summary><table><thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td>name</td><td>str</td><td>The identifying name of the contact person/organization.</td></tr><tr><td>url</td><td>str</td><td>The URL pointing to the contact information. MUST be in the format of a URL.</td></tr><tr><td>email</td><td>str</td><td>The email address of the contact person/organization. MUST be in the format of an email address.</td></tr></tbody></table></details> |
+| `license_info` | `dict` | The license information for the exposed API. It can contain several fields. <details><summary>license_info fields</summary><table><thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td>name</td><td>str</td><td>REQUIRED (if a license_info is set). The license name used for the API.</td></tr><tr><td>identifier</td><td>str</td><td>An [SPDX](https://spdx.org/licenses/) license expression for the API. The identifier field is mutually exclusive of the url field. Available since OpenAPI 3.1.0, FastAPI 0.99.0.</td></tr><tr><td>url</td><td>str</td><td>A URL to the license used for the API. MUST be in the format of a URL.</td></tr></tbody></table></details> |
 
 You can set them as follows:
 
@@ -67,7 +67,6 @@ You can write Markdown in the `description` field and it will be rendered in the
 
 With this configuration, the automatic API docs would look like:
 
-<img src="/img/tutorial/metadata/image01.png">
 
 ## License identifier { #license-identifier }
 
@@ -220,7 +219,6 @@ Read more about tags in [Path Operation Configuration](path-operation-configurat
 
 Now, if you check the docs, they will show all the additional metadata:
 
-<img src="/img/tutorial/metadata/image02.png">
 
 ### Order of tags { #order-of-tags }
 

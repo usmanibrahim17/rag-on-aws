@@ -125,7 +125,7 @@ FastAPI will now:
 
 ## Alternative (old): `Query` as the default value { #alternative-old-query-as-the-default-value }
 
-Previous versions of FastAPI (before <dfn title="before 2023-03">0.95.0</dfn>) required you to use `Query` as the default value of your parameter, instead of putting it in `Annotated`, there's a high chance that you will see code using it around, so I'll explain it to you.
+Previous versions of FastAPI (before 0.95.0) required you to use `Query` as the default value of your parameter, instead of putting it in `Annotated`, there's a high chance that you will see code using it around, so I'll explain it to you.
 
 /// tip
 
@@ -236,7 +236,7 @@ async def read_items(
 
 ## Add regular expressions { #add-regular-expressions }
 
-You can define a <dfn title="A regular expression, regex or regexp is a sequence of characters that define a search pattern for strings.">regular expression</dfn> `pattern` that the parameter should match:
+You can define a regular expression `pattern` that the parameter should match:
 
 ```python
 from typing import Annotated
@@ -411,7 +411,6 @@ To declare a query parameter with a type of `list`, like in the example above, y
 
 The interactive API docs will update accordingly, to allow multiple values:
 
-<img src="/img/tutorial/query-params-str-validations/image02.png">
 
 ### Query parameter list / multiple values with defaults { #query-parameter-list-multiple-values-with-defaults }
 
@@ -573,7 +572,7 @@ async def read_items(q: Annotated[str | None, Query(alias="item-query")] = None)
 
 Now let's say you don't like this parameter anymore.
 
-You have to leave it there a while because there are clients using it, but you want the docs to clearly show it as <dfn title="obsolete, recommended not to use it">deprecated</dfn>.
+You have to leave it there a while because there are clients using it, but you want the docs to clearly show it as deprecated.
 
 Then pass the parameter `deprecated=True` to `Query`:
 
@@ -608,7 +607,6 @@ async def read_items(
 
 The docs will show it like this:
 
-<img src="/img/tutorial/query-params-str-validations/image01.png">
 
 ## Exclude parameters from OpenAPI { #exclude-parameters-from-openapi }
 
@@ -646,7 +644,7 @@ Pydantic also has [`BeforeValidator`](https://pydantic.dev/docs/validation/lates
 
 ///
 
-For example, this custom validator checks that the item ID starts with `isbn-` for an <abbr title="International Standard Book Number">ISBN</abbr> book number or with `imdb-` for an <abbr title="Internet Movie Database: a website with information about movies">IMDB</abbr> movie URL ID:
+For example, this custom validator checks that the item ID starts with `isbn-` for an ISBN book number or with `imdb-` for an IMDB movie URL ID:
 
 ```python
 import random
@@ -742,7 +740,7 @@ async def read_items(
 
 #### A Random Item { #a-random-item }
 
-With `data.items()` we get an <dfn title="Something we can iterate on with a for loop, like a list, set, etc.">iterable object</dfn> with tuples containing the key and value for each dictionary item.
+With `data.items()` we get an iterable object with tuples containing the key and value for each dictionary item.
 
 We convert this iterable object into a proper `list` with `list(data.items())`.
 

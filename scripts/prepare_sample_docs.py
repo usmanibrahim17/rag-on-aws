@@ -7,6 +7,7 @@ examples, so each include line is replaced by the file's content as a fenced cod
 HTML wrapper tags (div, span, ...) are stripped from the prose, keeping their inner text.
 
 Usage: python scripts/prepare_sample_docs.py <fastapi-clone-dir> [out-dir]
+       python scripts/prepare_sample_docs.py --strip-only [dir]   # re-clean existing files in place
 """
 
 import html
@@ -33,9 +34,16 @@ def resolve(ref: str, tutorial_dir: Path, clone: Path) -> Path | None:
     return from_root if from_root.is_file() else None
 
 
-# Presentational wrappers used by the FastAPI docs (termynal terminals, colored output).
-# Only the tags go; the text inside stays. Links, images and <code>-like tags are left alone.
-WRAPPER_TAG_RE = re.compile(r"</?(?:div|span|section|center|font)\b[^>]*>", re.IGNORECASE)
+# Presentational wrappers and inline formatting used by the FastAPI docs (termynal terminals,
+# <dfn>/<abbr> tooltips, <code> spans, ...). Only the tags go; the text inside stays.
+# Links (<a>), tables (<table>/<tr>/<td>/<th>) and forms are deliberately left alone.
+WRAPPER_TAG_RE = re.compile(
+    r"</?(?:div|span|section|center|font|dfn|abbr|kbd|mark|small|sub|sup|code"
+    r"|b|i|em|strong|u)\b[^>]*>",
+    re.IGNORECASE,
+)
+# Images carry no searchable text, so the whole tag goes.
+IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 # Terminal screenshots are pasted as HTML (colors, bold, underline) inside ```console blocks.
 CONSOLE_TAG_RE = re.compile(r"</?(?:span|font|div|u|b|i|em|strong)\b[^>]*>", re.IGNORECASE)
 INLINE_CODE_RE = re.compile(r"(`+[^`]*`+)")  # `<div>` written as code must survive
@@ -43,10 +51,10 @@ FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*(\w*)")
 
 
 def strip_html_wrappers(text: str) -> str:
-    """Remove wrapper tags from prose, and color/style markup from console output blocks.
+    """Remove wrapper/formatting tags and <img> from prose, and color markup from console blocks.
 
-    Other fenced code is untouched (it may legitimately contain HTML). Lines that held
-    nothing but a wrapper tag are dropped.
+    Fenced code and inline `code` spans are untouched (they may legitimately contain HTML).
+    Lines that held nothing but a removed tag are dropped. Safe to run repeatedly.
     """
     out = []
     fence: str | None = None
@@ -61,7 +69,8 @@ def strip_html_wrappers(text: str) -> str:
             # Split on inline code spans: even parts are prose, odd parts are code.
             parts = INLINE_CODE_RE.split(line)
             cleaned = "".join(
-                p if i % 2 else WRAPPER_TAG_RE.sub("", p) for i, p in enumerate(parts)
+                p if i % 2 else WRAPPER_TAG_RE.sub("", IMG_TAG_RE.sub("", p))
+                for i, p in enumerate(parts)
             )
             if cleaned != line and not cleaned.strip():
                 continue  # the line was only a wrapper tag
@@ -104,10 +113,26 @@ def inline_includes(text: str, tutorial_dir: Path, clone: Path, stats: dict) -> 
     return "\n".join(out)
 
 
+def strip_in_place(directory: Path) -> int:
+    """Apply strip_html_wrappers to every .md file in `directory`; return how many changed."""
+    changed = 0
+    for path in sorted(directory.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        cleaned = strip_html_wrappers(text.replace("\r\n", "\n"))
+        if cleaned != text:
+            path.write_text(cleaned, encoding="utf-8", newline="\n")
+            changed += 1
+    return changed
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
+    if sys.argv[1] == "--strip-only":
+        directory = Path(sys.argv[2] if len(sys.argv) > 2 else "sample-docs")
+        print(f"files changed: {strip_in_place(directory)}")
+        return 0
     clone = Path(sys.argv[1]).resolve()
     out_dir = Path(sys.argv[2] if len(sys.argv) > 2 else "sample-docs")
     tutorial_dir = clone / "docs" / "en" / "docs" / "tutorial"

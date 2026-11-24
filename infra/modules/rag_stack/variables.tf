@@ -77,6 +77,17 @@ variable "chunk_overlap" {
   }
 }
 
+variable "ingest_max_concurrency" {
+  description = "Max ingest Lambdas running in parallel (SQS event source mapping). Lower = gentler on the AI provider's rate limit. AWS requires >= 2."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.ingest_max_concurrency >= 2 && var.ingest_max_concurrency <= 1000
+    error_message = "ingest_max_concurrency must be between 2 and 1000 (AWS limits)."
+  }
+}
+
 variable "ingest_zip_path" {
   description = "Path to the ingest Lambda zip (build it first with scripts/build_lambdas)."
   type        = string

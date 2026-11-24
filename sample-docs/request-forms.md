@@ -50,7 +50,7 @@ async def login(username: Annotated[str, Form()], password: Annotated[str, Form(
 
 For example, in one of the ways the OAuth2 specification can be used (called "password flow") it is required to send a `username` and `password` as form fields.
 
-The <dfn title="specification">spec</dfn> requires the fields to be exactly named `username` and `password`, and to be sent as form fields, not JSON.
+The spec requires the fields to be exactly named `username` and `password`, and to be sent as form fields, not JSON.
 
 With `Form` you can declare the same configurations as with `Body` (and `Query`, `Path`, `Cookie`), including validation, examples, an alias (e.g. `user-name` instead of `username`), etc.
 
@@ -99,7 +99,7 @@ But when the form includes files, it is encoded as `multipart/form-data`. You'll
 
 You can use `Form(media_type="multipart/form-data")` to describe a multipart form in OpenAPI. Setting it on one parameter is enough when combining form parameters or models.
 
-If you want to read more about these encodings and form fields, head to the [<abbr title="Mozilla Developer Network">MDN</abbr> web docs for `POST`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST).
+If you want to read more about these encodings and form fields, head to the [MDN web docs for `POST`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST).
 
 ///
 

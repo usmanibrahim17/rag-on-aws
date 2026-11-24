@@ -1,9 +1,10 @@
-"""Ingest Lambda: S3 ObjectCreated / ObjectRemoved -> chunk -> embed -> S3 Vectors.
+"""Ingest Lambda: S3 ObjectCreated / ObjectRemoved (via SQS) -> chunk -> embed -> S3 Vectors.
 
 Vector keys are "<s3_key>#<chunk_index>", so re-uploading a document overwrites its vectors
 instead of duplicating them, and a delete (or a shorter re-upload) removes the leftovers.
 """
 
+import json
 import time
 from urllib.parse import unquote_plus
 
@@ -17,39 +18,92 @@ MAX_HEADING_CHARS = 512
 
 
 def handler(event, context):
+    """Entry point for SQS events (S3 -> SQS -> Lambda) and, for compatibility, direct S3 events.
+
+    SQS: each message body is an S3 event notification. Failed messages are reported in
+    batchItemFailures (we don't raise), so only those messages go back to the queue and,
+    after maxReceiveCount tries, to the dead-letter queue.
+    """
     settings = load_settings()
     request_id = getattr(context, "aws_request_id", None)
 
     processed = 0
-    failures = 0
+    direct_failures = 0
+    batch_failures: list[dict] = []
+    has_sqs = False
     for record in event.get("Records", []):
-        started = time.monotonic()
-        info = _record_info(record)
-        try:
-            result = _process_record(record, settings)
-        except Exception as exc:  # keep going so one bad file doesn't block the others
-            failures += 1
-            log_json(
-                "record_failed",
-                request_id=request_id,
-                latency_ms=_elapsed_ms(started),
-                error=repr(exc),
-                **info,
-            )
-            continue
-        processed += 1
+        if record.get("eventSource") == "aws:sqs":
+            has_sqs = True
+            if _process_sqs_message(record, settings, request_id):
+                processed += 1
+            else:
+                batch_failures.append({"itemIdentifier": record["messageId"]})
+        elif _run_record(record, settings, request_id):
+            processed += 1
+        else:
+            direct_failures += 1
+
+    if direct_failures:
+        # Direct S3 invoke: raising makes Lambda retry the event; every step is idempotent.
+        raise RuntimeError(f"{direct_failures} of {direct_failures + processed} record(s) failed")
+    result: dict = {"processed": processed}
+    if has_sqs:
+        result["batchItemFailures"] = batch_failures
+    return result
+
+
+def _process_sqs_message(message: dict, settings: Settings, request_id: str | None) -> bool:
+    """Handle one SQS message. True = done (delete it), False = report as a batch item failure."""
+    message_id = message.get("messageId")
+    try:
+        body = json.loads(message.get("body") or "")
+        if not isinstance(body, dict):
+            raise ValueError("message body is not a JSON object")
+    except ValueError as exc:
+        log_json("message_failed", request_id=request_id, message_id=message_id, error=repr(exc))
+        return False
+
+    # S3 sends this once when the notification is created; there is nothing to ingest.
+    if body.get("Event") == "s3:TestEvent":
         log_json(
-            "record_processed",
+            "message_skipped", request_id=request_id, message_id=message_id, reason="s3:TestEvent"
+        )
+        return True
+
+    # Run every inner record even if one fails: progress is kept, and retrying is idempotent.
+    results = [
+        _run_record(inner, settings, request_id, message_id) for inner in body.get("Records", [])
+    ]
+    return all(results)
+
+
+def _run_record(
+    record: dict, settings: Settings, request_id: str | None, message_id: str | None = None
+) -> bool:
+    """Process one S3 event record; log the outcome; return False instead of raising."""
+    started = time.monotonic()
+    info = _record_info(record)
+    if message_id:
+        info["message_id"] = message_id
+    try:
+        result = _process_record(record, settings)
+    except Exception as exc:  # one bad file must not block the others
+        log_json(
+            "record_failed",
             request_id=request_id,
             latency_ms=_elapsed_ms(started),
+            error=repr(exc),
             **info,
-            **result,
         )
-
-    if failures:
-        # Raising makes Lambda retry the whole event; every step is idempotent, so that is safe.
-        raise RuntimeError(f"{failures} of {failures + processed} record(s) failed")
-    return {"processed": processed}
+        return False
+    log_json(
+        "record_processed",
+        request_id=request_id,
+        latency_ms=_elapsed_ms(started),
+        **info,
+        **result,
+    )
+    return True
 
 
 def _elapsed_ms(started: float) -> int:

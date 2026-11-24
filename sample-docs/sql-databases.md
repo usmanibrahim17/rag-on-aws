@@ -8,7 +8,7 @@ Here we'll see an example using [SQLModel](https://sqlmodel.tiangolo.com/).
 
 /// tip
 
-You could use any other SQL or NoSQL database library you want (in some cases called <abbr title="Object Relational Mapper: a fancy term for a library where some classes represent SQL tables and instances represent rows in those tables">"ORMs"</abbr>), FastAPI doesn't force you to use anything. 😎
+You could use any other SQL or NoSQL database library you want (in some cases called "ORMs"), FastAPI doesn't force you to use anything. 😎
 
 ///
 
@@ -823,7 +823,6 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 
 Then go to the `/docs` UI, you will see that **FastAPI** is using these **models** to **document** the API, and it will use them to **serialize** and **validate** the data too.
 
-<img src="/img/tutorial/sql-databases/image01.png">
 
 ## Update the App with Multiple Models { #update-the-app-with-multiple-models }
 
@@ -2044,7 +2043,6 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 
 If you go to the `/docs` API UI, you will see that it is now updated, and it won't expect to receive the `id` from the client when creating a hero, etc.
 
-<img src="/img/tutorial/sql-databases/image02.png">
 
 ## Recap { #recap }
 

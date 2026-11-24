@@ -44,7 +44,7 @@ This will give you editor support inside of your function, with error checks, co
 
 ///
 
-## Data <dfn title="also known as: serialization, parsing, marshalling">conversion</dfn> { #data-conversion }
+## Data conversion { #data-conversion }
 
 If you run this example and open your browser at [http://127.0.0.1:8000/items/3](http://127.0.0.1:8000/items/3), you will see a response of:
 
@@ -56,7 +56,7 @@ If you run this example and open your browser at [http://127.0.0.1:8000/items/3]
 
 Notice that the value your function received (and returned) is `3`, as a Python `int`, not a string `"3"`.
 
-So, with that type declaration, **FastAPI** gives you automatic request <dfn title="converting the string that comes from an HTTP request into Python data">"parsing"</dfn>.
+So, with that type declaration, **FastAPI** gives you automatic request "parsing".
 
 ///
 
@@ -98,7 +98,6 @@ This is incredibly helpful while developing and debugging code that interacts wi
 
 And when you open your browser at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), you will see an automatic, interactive, API documentation like:
 
-<img src="/img/tutorial/path-params/image01.png">
 
 /// tip
 
@@ -114,7 +113,6 @@ And because the generated schema is from the [OpenAPI](https://github.com/OAI/Op
 
 Because of this, **FastAPI** itself provides an alternative API documentation (using ReDoc), which you can access at [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc):
 
-<img src="/img/tutorial/path-params/image02.png">
 
 The same way, there are many compatible tools. Including code generation tools for many languages.
 
@@ -176,7 +174,7 @@ The first one will always be used since the path matches first.
 
 ## Predefined values { #predefined-values }
 
-If you have a *path operation* that receives a *path parameter*, but you want the possible valid *path parameter* values to be predefined, you can use a standard Python <abbr title="Enumeration">`Enum`</abbr>.
+If you have a *path operation* that receives a *path parameter*, but you want the possible valid *path parameter* values to be predefined, you can use a standard Python `Enum`.
 
 ### Create an `Enum` class { #create-an-enum-class }
 
@@ -214,7 +212,7 @@ async def get_model(model_name: ModelName):
 
 /// tip
 
-If you are wondering, "AlexNet", "ResNet", and "LeNet" are just names of Machine Learning <dfn title="Technically, Deep Learning model architectures">models</dfn>.
+If you are wondering, "AlexNet", "ResNet", and "LeNet" are just names of Machine Learning models.
 
 ///
 
@@ -252,7 +250,6 @@ async def get_model(model_name: ModelName):
 
 Because the available values for the *path parameter* are predefined, the interactive docs can show them nicely:
 
-<img src="/img/tutorial/path-params/image03.png">
 
 ### Working with Python *enumerations* { #working-with-python-enumerations }
 
@@ -417,7 +414,7 @@ In that case, the URL would be: `/files//home/johndoe/myfile.txt`, with a double
 With **FastAPI**, by using short, intuitive and standard Python type declarations, you get:
 
 * Editor support: error checks, autocompletion, etc.
-* Data "<dfn title="converting the string that comes from an HTTP request into Python data">parsing</dfn>"
+* Data "parsing"
 * Data validation
 * API annotation and automatic documentation
 

@@ -10,6 +10,12 @@ variable "monthly_budget_usd" {
   default     = 20
 }
 
+variable "ingest_max_concurrency" {
+  description = "Max parallel ingest Lambdas (>= 2). Keep low on the Gemini free tier."
+  type        = number
+  default     = 2
+}
+
 variable "ai_provider" {
   description = "AI provider for embeddings and generation: \"gemini\" (now) or \"bedrock\" (when quota allows). Switching requires re-ingesting."
   type        = string

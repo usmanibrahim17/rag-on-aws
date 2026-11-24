@@ -122,4 +122,4 @@ This stacking behavior ensures that middlewares are executed in a predictable an
 
 You can later read more about other middlewares in the [Advanced User Guide: Advanced Middleware](../advanced/middleware.md).
 
-You will read about how to handle <abbr title="Cross-Origin Resource Sharing">CORS</abbr> with a middleware in the next section.
+You will read about how to handle CORS with a middleware in the next section.

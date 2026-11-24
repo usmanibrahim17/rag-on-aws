@@ -52,7 +52,6 @@ from app.routers import items
 * There's also a subdirectory `app/internal/` with another file `__init__.py`, so it's another "Python subpackage": `app.internal`.
 * And the file `app/internal/admin.py` is another submodule: `app.internal.admin`.
 
-<img src="/img/tutorial/bigger-applications/package.drawio.svg">
 
 The same file structure with comments:
 
@@ -363,7 +362,6 @@ But that file doesn't exist, our dependencies are in a file at `app/dependencies
 
 Remember what our app/file structure looks like:
 
-<img src="/img/tutorial/bigger-applications/package.drawio.svg">
 
 ---
 
@@ -833,7 +831,6 @@ And open the docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 You will see the automatic API docs, including the paths from all the submodules, using the correct paths (and prefixes) and the correct tags:
 
-<img src="/img/tutorial/bigger-applications/image01.png">
 
 ## Include the same router multiple times with different `prefix` { #include-the-same-router-multiple-times-with-different-prefix }
 

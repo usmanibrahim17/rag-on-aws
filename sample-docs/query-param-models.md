@@ -41,7 +41,6 @@ async def read_items(filter_query: Annotated[FilterParams, Query()]):
 
 You can see the query parameters in the docs UI at `/docs`:
 
-<img src="/img/tutorial/query-param-models/image01.png">
 
 ## Forbid Extra Query Parameters { #forbid-extra-query-parameters }
 

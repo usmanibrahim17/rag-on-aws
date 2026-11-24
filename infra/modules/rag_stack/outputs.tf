@@ -33,6 +33,16 @@ output "ingest_function_name" {
   value       = aws_lambda_function.ingest.function_name
 }
 
+output "ingest_queue_url" {
+  description = "URL of the SQS queue that buffers S3 events for the ingest Lambda."
+  value       = aws_sqs_queue.ingest.url
+}
+
+output "ingest_dlq_url" {
+  description = "URL of the dead-letter queue for ingest messages that failed 5 times."
+  value       = aws_sqs_queue.ingest_dlq.url
+}
+
 output "ingest_log_group_name" {
   description = "CloudWatch log group of the ingest Lambda."
   value       = aws_cloudwatch_log_group.ingest.name

@@ -42,7 +42,6 @@ async def read_items(headers: Annotated[CommonHeaders, Header()]):
 
 You can see the required headers in the docs UI at `/docs`:
 
-<img src="/img/tutorial/header-param-models/image01.png">
 
 ## Forbid Extra Headers { #forbid-extra-headers }
 

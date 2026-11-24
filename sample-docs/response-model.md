@@ -355,11 +355,9 @@ This way, you can get the best of both worlds: type annotations with **tooling s
 
 When you see the automatic docs, you can check that the input model and output model will both have their own JSON Schema:
 
-<img src="/img/tutorial/response-model/image01.png">
 
 And both models will be used for the interactive API documentation:
 
-<img src="/img/tutorial/response-model/image02.png">
 
 ## Other Return Type Annotations { #other-return-type-annotations }
 
@@ -409,7 +407,7 @@ This will also work because `RedirectResponse` is a subclass of `Response`, and 
 
 But when you return some other arbitrary object that is not a valid Pydantic type (e.g. a database object) and you annotate it like that in the function, FastAPI will try to create a Pydantic response model from that type annotation, and will fail.
 
-The same would happen if you had something like a <dfn title='A union between multiple types means "any of these types".'>union</dfn> between different types where one or more of them are not valid Pydantic types, for example this would fail 💥:
+The same would happen if you had something like a union between different types where one or more of them are not valid Pydantic types, for example this would fail 💥:
 
 ```python
 from fastapi import FastAPI, Response

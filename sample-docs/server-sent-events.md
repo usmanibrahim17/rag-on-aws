@@ -286,7 +286,7 @@ The `data` field is always encoded as JSON. You can pass any value that can be s
 
 If you need to send data **without** JSON encoding, use `raw_data` instead of `data`.
 
-This is useful for sending pre-formatted text, log lines, or special <dfn title="A value used to indicate a special condition or state">"sentinel"</dfn> values like `[DONE]`.
+This is useful for sending pre-formatted text, log lines, or special "sentinel" values like `[DONE]`.
 
 ```python
 from collections.abc import AsyncIterable

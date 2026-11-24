@@ -350,7 +350,7 @@ async def root():
 The `@app.get("/")` tells **FastAPI** that the function right below is in charge of handling requests that go to:
 
 * the path `/`
-* using a <dfn title="an HTTP GET method"><code>get</code> operation</dfn>
+* using a get operation
 
 /// note | `@decorator` Info
 

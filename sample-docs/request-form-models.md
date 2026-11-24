@@ -51,7 +51,6 @@ For [HTML checkboxes](request-forms.md#boolean-form-fields), declare boolean fie
 
 You can verify it in the docs UI at `/docs`:
 
-<img src="/img/tutorial/request-form-models/image01.png">
 
 ## Forbid Extra Form Fields { #forbid-extra-form-fields }
 

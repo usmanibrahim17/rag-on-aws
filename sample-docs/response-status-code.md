@@ -38,7 +38,6 @@ It will:
 * Return that status code in the response.
 * Document it as such in the OpenAPI schema (and so, in the user interfaces):
 
-<img src="/img/tutorial/response-status-code/image01.png">
 
 /// note
 
@@ -75,7 +74,7 @@ In short:
 
 /// tip
 
-To know more about each status code and which code is for what, check the [<abbr title="Mozilla Developer Network">MDN</abbr> documentation about HTTP status codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status).
+To know more about each status code and which code is for what, check the [MDN documentation about HTTP status codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status).
 
 ///
 
@@ -113,7 +112,6 @@ async def create_item(name: str):
 
 They are just a convenience, they hold the same number, but that way you can use the editor's autocomplete to find them:
 
-<img src="/img/tutorial/response-status-code/image02.png">
 
 /// note | Technical Details
 

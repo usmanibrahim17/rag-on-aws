@@ -24,6 +24,8 @@ module "rag_stack" {
   ingest_zip_path = "${path.root}/../../../dist/ingest.zip"
   query_zip_path  = "${path.root}/../../../dist/query.zip"
 
+  ingest_max_concurrency = var.ingest_max_concurrency
+
   ai_provider                   = var.ai_provider
   embedding_dimension           = var.embedding_dimension
   gemini_embedding_model        = var.gemini_embedding_model

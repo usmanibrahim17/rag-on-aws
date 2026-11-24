@@ -26,6 +26,14 @@ output "query_log_group_name" {
   value = module.rag_stack.query_log_group_name
 }
 
+output "ingest_queue_url" {
+  value = module.rag_stack.ingest_queue_url
+}
+
+output "ingest_dlq_url" {
+  value = module.rag_stack.ingest_dlq_url
+}
+
 output "ingest_function_name" {
   value = module.rag_stack.ingest_function_name
 }

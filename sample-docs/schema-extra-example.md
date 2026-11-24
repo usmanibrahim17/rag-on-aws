@@ -148,7 +148,6 @@ async def update_item(
 
 With any of the methods above it would look like this in the `/docs`:
 
-<img src="/img/tutorial/body-fields/image01.png">
 
 ### `Body` with multiple `examples` { #body-with-multiple-examples }
 
@@ -202,7 +201,7 @@ async def update_item(
 
 When you do this, the examples will be part of the internal **JSON Schema** for that body data.
 
-Nevertheless, at the <dfn title="2023-08-26">time of writing this</dfn>, Swagger UI, the tool in charge of showing the docs UI, doesn't support showing multiple examples for the data in **JSON Schema**. But read below for a workaround.
+Nevertheless, at the time of writing this, Swagger UI, the tool in charge of showing the docs UI, doesn't support showing multiple examples for the data in **JSON Schema**. But read below for a workaround.
 
 ### OpenAPI-specific `examples` { #openapi-specific-examples }
 
@@ -300,7 +299,6 @@ async def update_item(
 
 With `openapi_examples` added to `Body()` the `/docs` would look like:
 
-<img src="/img/tutorial/body-fields/image02.png">
 
 ## Technical Details { #technical-details }
 
