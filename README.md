@@ -47,17 +47,31 @@ flowchart LR
 
 ## Evaluation
 
-40 + 10 hand-reviewed questions (answerable, multi-document, off-topic and near-miss), run against the live API. Full table, method and per-run notes: [`evals/RESULTS.md`](evals/RESULTS.md). Question format and how the sets were made: [`evals/README.md`](evals/README.md).
+50 questions (answerable, multi-document, off-topic and near-miss), written from the documents with every expected answer location checked against its source, and run against the live API. Full table, method and per-run notes: [`evals/RESULTS.md`](evals/RESULTS.md). Question format and how the sets were made: [`evals/README.md`](evals/README.md).
 
-@@EVAL@@
+| Collection | Distance threshold | Questions (answerable / not) | hit@1 | hit@5 | MRR | Unanswerable refused | Answerable wrongly refused | p50 latency |
+|---|---|---|---|---|---|---|---|---|
+| Developer docs (FastAPI) | 0.6 (default) | 32 / 8 | 96.9% | 100% | 0.984 | 8/8, all by the model | 0/32 | 1.4 s |
+| Developer docs (FastAPI) | **0.4 (tuned)** | 32 / 8 | 96.9% | 100% | 0.984 | 8/8, **3 before the model** | 0/32 | 1.1 s |
+| Company support (business, incl. 2 PDFs) | 0.4 | 8 / 2 | 100% | 100% | 1.000 | 2/2, both before the model | 0/8 | 0.8 s |
+
+*hit@k: a correct source is among the first k retrieved chunks. MRR: mean reciprocal rank of the first correct source. "Before the model": refused by the distance threshold with zero tokens spent.* The question sets are small, so read these as a regression check rather than a benchmark: the highest top distance of any answerable question is 0.36, and the threshold is 0.4.
 
 ## Cost per 1,000 questions
 
-Measured token usage from the eval runs (average @@TOKENS@@ per question, including the questions refused before the model), multiplied by official prices checked on 2026-11-25.
+Measured token usage from the 50 eval questions (average **826 input / 95 output tokens** per question, 1.6 s in Lambda, including the questions refused before the model), multiplied by official prices checked on **2026-11-25**.
 
-@@COST@@
+| Option | Models | AWS infrastructure | **Total per 1,000 questions** |
+|---|---|---|---|
+| (a) Gemini free tier | $0.00 | $0.017 | **$0.02**, demo/public data only (free-tier prompts may be used to improve Google products) |
+| (b) Gemini paid: `gemini-3.5-flash-lite` + `gemini-embedding-001` | $0.49 | $0.017 | **$0.50** |
+| (c) Amazon Bedrock: Nova Lite + Titan Embeddings V2 | $0.073 | $0.017 | **$0.09** |
 
-Sources: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) · Amazon Bedrock on-demand prices for us-east-1 from the [AWS Price List API](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html) (published 2026-11-23; the same figures as the [Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/)) · [Lambda](https://aws.amazon.com/lambda/pricing/) · [API Gateway](https://aws.amazon.com/api-gateway/pricing/) · [S3 Vectors](https://aws.amazon.com/s3/pricing/). Reproduce with `python scripts/estimate_cost.py evals/results/<run>.json`. Idle cost is storage only: a few cents per month for this demo.
+Prices used: Gemini Flash-Lite $0.30 / $2.50 per 1M input / output tokens (output includes thinking tokens), Gemini embedding $0.15 per 1M; Nova Lite $0.06 / $0.24 per 1M, Titan Embeddings V2 $0.02 per 1M; API Gateway HTTP API $1.00 per million requests; Lambda $0.0000166667 per GB-second (512 MB) + $0.20 per million requests; S3 Vectors queries $2.50 per million.
+
+Sources: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) · Bedrock on-demand prices for us-east-1 read from the AWS Price List API (publication date 2026-11-23; the figures behind the [Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/)) · [Lambda](https://aws.amazon.com/lambda/pricing/) · [API Gateway](https://aws.amazon.com/api-gateway/pricing/) · [S3 Vectors](https://aws.amazon.com/s3/pricing/). Reproduce with `python scripts/estimate_cost.py evals/results/<run>.json`.
+
+Caveats: token counts come from Gemini's tokenizer, so option (c) is an estimate (Nova's tokenizer differs slightly); Gemini does not report embedding tokens, so those are estimated from question length (negligible); CloudWatch logs, CloudFront and data transfer are not included (cents at demo traffic). Ingesting all 46 demo documents once is about 100k embedding tokens: under $0.02 on any option. Idle cost is storage only: a few cents per month.
 
 ## Security
 
@@ -69,13 +83,21 @@ Sources: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) · 
 - **Deploy guard.** The CD job refuses any plan that deletes or replaces resources unless the commit says `[allow-destroy]`.
 - **Data privacy.** Free-tier Gemini may use prompts to improve Google products: use it for public or demo documents only. For client data use a paid Gemini key or the Bedrock provider.
 
+## Honest limits
+
+- The eval sets are small (50 questions) and were written by the author's tooling from the same documents the system indexes; they catch regressions, they are not an independent benchmark.
+- Near-miss questions (plausible but not covered) sit at the same retrieval distance as real ones, so the distance threshold cannot separate them; the model's grounding instruction does that job, and it is measured (5 of 5 refused in the FastAPI set).
+- PDFs need a text layer: scanned documents are skipped (there is no OCR). Encrypted, corrupt or over-20 MB PDFs are skipped and logged, not retried.
+- The Gemini free tier is rate limited, so a large first upload takes minutes; the queue and backoff make it reliable, not fast.
+
 ## Problems solved
 
 1. **Bedrock quota was 0.** AWS denied the increase for the new account, so the AI calls became a provider interface (`app/common/providers.py`) with Gemini and Bedrock implementations. Switching is one setting plus a re-ingest.
 2. **Free-tier rate limits (HTTP 429).** 40 parallel ingests lost 11 documents after all retries. S3 → SQS → Lambda with capped concurrency, backoff with jitter, partial-batch failure reporting and a dead-letter queue fixed it.
-3. **A threshold nobody tuned.** The first eval run showed the 0.6 distance threshold never triggered (off-topic questions scored 0.47–0.50). Sweeping thresholds over the eval set picked 0.4 with no wrongly refused question.
-4. **GitHub OIDC refused the deploy role.** The repository uses GitHub's *immutable subject claims* (`repo:owner@id/repo@id`), so the trust policy had to match the ID-based subject, which is also safer against repo-name reuse.
-5. **The refusal classifier lied.** Early eval numbers credited the threshold for refusals the model had made itself; refusals are now classified by whether tokens were spent.
+3. **Retries that took half an hour.** A throttled message waited out the queue's 30-minute visibility timeout. Throttled records now release their message after a jittered 1, 2, 4, 8 minute backoff (`ChangeMessageVisibility`, capped at 10 min) and are still reported as failures, so the dead-letter queue keeps catching real problems.
+4. **A threshold nobody tuned.** The first eval run showed the 0.6 distance threshold never triggered (off-topic questions scored 0.47–0.50). Sweeping thresholds over the eval set picked 0.4 with no wrongly refused question.
+5. **GitHub OIDC refused the deploy role.** The repository uses GitHub's *immutable subject claims* (`repo:owner@id/repo@id`), so the trust policy had to match the ID-based subject, which is also safer against repo-name reuse.
+6. **The refusal classifier lied.** Early eval numbers credited the threshold for refusals the model had made itself; refusals are now classified by whether tokens were spent.
 
 ## Deploy your own
 

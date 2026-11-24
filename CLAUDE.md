@@ -1,6 +1,6 @@
 # rag-on-aws — project brief for Claude Code
 
-STATUS: M5 done (public demo, CD with OIDC + permissions boundary, remote state). Now on M6: portfolio polish: widget browser test + screenshots, PDF ingestion, second "business" collection with a collection filter on /ask, cost-per-1,000-questions estimate, README rewrite. Provider is Gemini (Bedrock quota is 0).
+STATUS: M6 essentially done: PDF ingestion, business collection with /ask collection filter, widget tabs, throttle-aware retry backoff, cost estimate and README. Evals: fastapi hit@5 100% / MRR 0.984, business hit@1 100%; threshold 0.4. Provider is Gemini (Bedrock quota is 0). CD via GitHub OIDC; stack roles carry a permissions boundary.
 
 FINDING (M4): with Gemini embeddings the default 0.6 distance threshold never fired (off-topic questions have top distance 0.47-0.50, answerable ones top out at 0.357), so the LLM did all the refusing. At 0.4 the off-topic questions are refused before the LLM; the near-miss questions (0.34-0.38) overlap the answerable range and still rely on the model.
 

@@ -193,15 +193,23 @@
       (String(data.answer || "").match(/\[(\d+)\]/g) || []).forEach(function (m) {
         cited[m.slice(1, -1)] = true;
       });
+      var refused = isRefusal(data);
       var anyCited = Object.keys(cited).length > 0;
 
       var sources = data.sources || [];
       if (sources.length) {
-        var list = el("ul", { class: "sources", "aria-label": "Sources" });
+        if (refused) {
+          // The answer did not use these: say so instead of presenting them as sources.
+          card.appendChild(
+            el("div", { class: "meta", text: "Closest documents found (not relevant enough to answer):" })
+          );
+        }
+        var list = el("ul", { class: "sources", "aria-label": refused ? "Closest documents" : "Sources" });
         sources.forEach(function (s) {
           var label = (s.heading || s.key) + " (" + s.key + ")";
           var url = sourceUrl(s.key);
-          var item = el("li", { class: anyCited && !cited[String(s.n)] ? "uncited" : "" }, [
+          var dim = refused || (anyCited && !cited[String(s.n)]);
+          var item = el("li", { class: dim ? "uncited" : "" }, [
             el("span", { class: "n", text: "[" + s.n + "]" }),
           ]);
           if (url) {
@@ -216,7 +224,7 @@
       }
 
       var meta = el("div", { class: "meta" });
-      if (isRefusal(data)) meta.appendChild(el("span", { class: "pill", text: "I don't know" }));
+      if (refused) meta.appendChild(el("span", { class: "pill", text: "I don't know" }));
       var seconds = typeof data.latency_ms === "number" ? (data.latency_ms / 1000).toFixed(1) + " s" : "";
       var usage = data.usage || {};
       var tokens = usage.input_tokens || usage.output_tokens

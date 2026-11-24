@@ -87,3 +87,20 @@ missing docs otherwise show up as retrieval failures.
 
 Outputs: the terminal summary, `evals/results/<timestamp>.json` (every question's status,
 answer, sources, distances, tokens; git-ignored) and one row appended to `evals/RESULTS.md`.
+
+## Collections
+
+The index holds several document collections (a sub-folder under `docs/` is a collection;
+files directly under `docs/` belong to `fastapi`). Evaluate each collection with its own
+question file and the matching `--collection` flag, so retrieval is restricted to it:
+
+```powershell
+$url = terraform -chdir=infra\envs\demo output -raw ask_url
+.\.venv\Scripts\python.exe evalsun_evals.py --url $url --collection fastapi
+.\.venv\Scripts\python.exe evalsun_evals.py --url $url --questions evals\questions_business.jsonl --collection business
+```
+
+`questions_business.jsonl` has 10 questions (8 answerable, one needing two documents, 1 off-topic,
+1 near-miss about gift wrapping, which the fictional company's documents do not cover). Some
+answers live in the PDFs. Cost per 1,000 questions can be recomputed from any result file with
+`python scripts/estimate_cost.py evals/results/<run>.json`.
