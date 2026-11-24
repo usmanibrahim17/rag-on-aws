@@ -1,6 +1,8 @@
 # rag-on-aws — project brief for Claude Code
 
-STATUS: M2b deployed; M3 offline code done (Bedrock-only). AWS denied the Bedrock quota increase (all on-demand quotas are 0), so we are adding a pluggable AI provider: Gemini now, Bedrock later via one setting. Now on that provider abstraction (offline; nothing may call Gemini or AWS until approved).
+STATUS: M3.5 deployed (SQS pacing works, 37/40 docs indexed, last 3 retrying). Provider is Gemini (Bedrock quota is 0). M3 working end to end. Now on M4 (evals).
+
+FINDING (M3, to act on in M4): with Gemini embeddings, a relevant question had top distance 0.24 while a totally unrelated one ("What is the capital of France?") had 0.47. The default 0.6 distance threshold therefore never triggers, and the LLM did the refusing instead. The threshold must be tuned from eval data (see the sweep in `evals/run_evals.py`), not guessed.
 
 Read this file fully before any work. Follow the milestone order. Do one milestone per session unless told otherwise.
 

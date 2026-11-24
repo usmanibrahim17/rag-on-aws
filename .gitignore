@@ -226,3 +226,6 @@ __marimo__/
 *.tfvars
 !*.tfvars.example
 crash.log
+
+# Eval run output (per-question details); RESULTS.md is committed
+evals/results/
