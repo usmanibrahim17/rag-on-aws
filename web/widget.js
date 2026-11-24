@@ -2,16 +2,22 @@
  * RAG chat widget: one <script> tag, no framework, no build step.
  *
  *   <script src="widget.js" data-api-url="https://<api-id>.execute-api.us-east-1.amazonaws.com/ask"
- *           data-source-base-url="https://fastapi.tiangolo.com/tutorial/"
+ *           data-collection="fastapi"
+ *           data-source-url-template="https://fastapi.tiangolo.com/tutorial/{slug}/"
  *           data-title="Ask the docs"></script>
  *
  * Attributes:
- *   data-api-url          (required) full URL of the POST /ask endpoint
- *   data-source-base-url  (optional) turns a source key like "docs/path-params.md" into a link:
- *                         <base>/path-params/  ("docs/index.md" -> <base>/)
- *   data-title            (optional) panel title
+ *   data-api-url             (required) full URL of the POST /ask endpoint
+ *   data-collection          (optional) restrict answers to one document collection
+ *   data-source-url-template (optional) makes sources clickable. {path} is the source key
+ *                            without "docs/" ("business/faq.md"); {slug} is {path} without its
+ *                            extension ("business/faq"; "index" becomes empty).
+ *   data-title               (optional) panel title
  *
- * Page API: window.RagWidget.ask("question") opens the panel and asks it.
+ * Page API:
+ *   window.RagWidget.ask("question")  opens the panel and asks it
+ *   window.RagWidget.configure({collection, title, sourceUrlTemplate})  switches the knowledge
+ *                                     base and starts a fresh conversation
  *
  * Adapted from the ai-support-widget project's widget.js (MIT): Shadow DOM isolation and the
  * el() helper are kept; the business/escalation logic was replaced with this API's response
@@ -24,7 +30,8 @@
   var SCRIPT =
     document.currentScript || document.querySelector('script[src*="widget.js"]');
   var API_URL = SCRIPT && SCRIPT.getAttribute("data-api-url");
-  var SOURCE_BASE = SCRIPT && SCRIPT.getAttribute("data-source-base-url");
+  var COLLECTION = (SCRIPT && SCRIPT.getAttribute("data-collection")) || "";
+  var SOURCE_TEMPLATE = (SCRIPT && SCRIPT.getAttribute("data-source-url-template")) || "";
   var TITLE = (SCRIPT && SCRIPT.getAttribute("data-title")) || "Ask the docs";
   var MAX_QUESTION_CHARS = 500; // the API rejects longer questions
 
@@ -45,12 +52,14 @@
     return node;
   }
 
-  // "docs/path-params.md" -> "<base>/path-params/" (only when a base URL is configured)
+  // Fill the URL template for a source key (null when no template is configured).
   function sourceUrl(key) {
-    if (!SOURCE_BASE) return null;
-    var slug = key.replace(/^docs\//, "").replace(/\.md$/, "");
-    var base = SOURCE_BASE.replace(/\/+$/, "");
-    return slug === "index" ? base + "/" : base + "/" + slug + "/";
+    if (!SOURCE_TEMPLATE) return null;
+    var path = key.replace(/^docs\//, "");
+    var slug = path.replace(/\.[A-Za-z0-9]+$/, "");
+    if (slug === "index") slug = "";
+    var url = SOURCE_TEMPLATE.split("{path}").join(path).split("{slug}").join(slug);
+    return url.replace(/([^:])\/\/+/g, "$1/"); // an empty slug must not leave "//"
   }
 
   // The model (or the distance threshold) refused to answer from the documents.
@@ -197,7 +206,7 @@
       fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: question }),
+        body: JSON.stringify(COLLECTION ? { question: question, collection: COLLECTION } : { question: question }),
       })
         .then(function (response) {
           return response
@@ -237,7 +246,22 @@
       }
     });
 
-    window.RagWidget = { ask: ask, open: function () { setOpen(true); } };
+    var header = panel.querySelector(".header");
+
+    // Switch to another knowledge base (collection) and start a fresh conversation.
+    function configure(options) {
+      options = options || {};
+      if (typeof options.collection === "string") COLLECTION = options.collection;
+      if (typeof options.sourceUrlTemplate === "string") SOURCE_TEMPLATE = options.sourceUrlTemplate;
+      if (typeof options.title === "string") {
+        TITLE = options.title;
+        header.textContent = TITLE;
+        panel.setAttribute("aria-label", TITLE);
+      }
+      messages.textContent = ""; // old answers came from the previous collection
+    }
+
+    window.RagWidget = { ask: ask, configure: configure, open: function () { setOpen(true); } };
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

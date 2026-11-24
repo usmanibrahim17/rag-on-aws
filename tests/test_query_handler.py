@@ -99,6 +99,30 @@ def test_base64_body_is_decoded(aws):
     assert aws.embed.call_args.args[0] == "hello"
 
 
+def test_collection_is_passed_to_the_vector_search(aws):
+    aws.query.return_value = []
+    body = json.dumps({"question": "How long is the warranty?", "collection": "business"})
+
+    status, _ = call({"body": body})
+
+    assert status == 200
+    assert aws.query.call_args.args[-1] == "business"  # last argument: the collection filter
+
+
+def test_no_collection_means_no_filter(aws):
+    aws.query.return_value = []
+    call(event("anything"))
+    assert aws.query.call_args.args[-1] is None
+
+
+@pytest.mark.parametrize("collection", ["Business", "", "a b", "x" * 31, 5, ["business"], "../x"])
+def test_invalid_collection_returns_400_without_touching_aws(aws, collection):
+    body = json.dumps({"question": "q", "collection": collection})
+    status, payload = call({"body": body})
+    assert status == 400 and "collection" in payload["error"]
+    aws.embed.assert_not_called()
+
+
 def test_far_away_results_return_idk_and_skip_the_llm(aws):
     aws.query.return_value = [hit("docs/a.md", 0.9), hit("docs/b.md", 0.95)]
 

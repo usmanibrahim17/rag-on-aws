@@ -1,0 +1,2 @@
+# Packages vendored INTO the Lambda zips by scripts/build_lambdas (pure Python, so they run on Linux)
+pypdf==7.1.1

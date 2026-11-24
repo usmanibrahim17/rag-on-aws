@@ -13,9 +13,14 @@ from app.common.chunking import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE
 
 # Only objects under this prefix with one of these suffixes are ingested.
 DOCS_PREFIX = "docs/"
-ALLOWED_SUFFIXES = (".md", ".txt")
+ALLOWED_SUFFIXES = (".md", ".txt", ".pdf")
 # Files that live next to the docs but are not part of the corpus (e.g. license/credit notes).
 SKIP_FILENAMES = frozenset({"source.md"})
+
+# A sub-folder under docs/ is a collection: docs/business/faq.md belongs to "business". Files
+# directly under docs/ belong to the default collection. /ask can filter retrieval by it.
+DEFAULT_COLLECTION = "fastapi"
+COLLECTION_RE = r"[a-z0-9][a-z0-9_-]{0,29}"
 
 PROVIDERS = ("gemini", "bedrock")
 COMMON_VARS = ("VECTOR_BUCKET_NAME", "VECTOR_INDEX_NAME", "AI_PROVIDER", "EMBEDDING_DIMENSION")
@@ -168,8 +173,16 @@ def load_query_settings(env=None) -> QuerySettings:
     )
 
 
+def collection_for_key(key: str) -> str:
+    """ "docs/business/faq.md" -> "business"; "docs/path-params.md" -> the default collection."""
+    parts = key.split("/")
+    if len(parts) > 2 and parts[0] == "docs":
+        return parts[1].lower()
+    return DEFAULT_COLLECTION
+
+
 def is_ingestible_key(key: str) -> bool:
-    """True for docs/**/*.md|txt, except files listed in SKIP_FILENAMES."""
+    """True for docs/**/*.md|txt|pdf, except files listed in SKIP_FILENAMES."""
     lowered = key.lower()
     if not key.startswith(DOCS_PREFIX) or not lowered.endswith(ALLOWED_SUFFIXES):
         return False

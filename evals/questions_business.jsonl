@@ -1,0 +1,10 @@
+{"id": "b01", "question": "If I change my mind about something I bought, how long do I have to send it back for my money?", "expected_sources": ["docs/business/returns-and-warranty.pdf"], "answerable": true, "difficulty": "direct"}
+{"id": "b02", "question": "What is the price to get a parcel delivered within a day or two?", "expected_sources": ["docs/business/shipping-policy.md"], "answerable": true, "difficulty": "direct"}
+{"id": "b03", "question": "My desk lamp has stopped responding. How do I wipe its settings and start over?", "expected_sources": ["docs/business/faq.md"], "answerable": true, "difficulty": "direct"}
+{"id": "b04", "question": "How many points do I need to collect before I get a five dollar voucher?", "expected_sources": ["docs/business/loyalty-program.md"], "answerable": true, "difficulty": "direct"}
+{"id": "b05", "question": "The little light on my wireless phone pad turned orange. What is wrong?", "expected_sources": ["docs/business/troubleshooting.md"], "answerable": true, "difficulty": "direct"}
+{"id": "b06", "question": "How many paid vacation days does a full-time employee get each year, and can unused ones be kept?", "expected_sources": ["docs/business/staff-handbook.pdf"], "answerable": true, "difficulty": "understanding"}
+{"id": "b07", "question": "Am I allowed to work from home as an employee, and is there a waiting period?", "expected_sources": ["docs/business/staff-handbook.pdf"], "answerable": true, "difficulty": "understanding"}
+{"id": "b08", "question": "My smart plug won't connect and it is only 5 months old. How do I pair it, and would a broken one be covered?", "expected_sources": ["docs/business/troubleshooting.md", "docs/business/returns-and-warranty.pdf"], "answerable": true, "difficulty": "multi"}
+{"id": "b09", "question": "What is the tallest mountain in the world?", "expected_sources": [], "answerable": false, "difficulty": "unanswerable"}
+{"id": "b10", "question": "Can you gift-wrap my order and include a handwritten card?", "expected_sources": [], "answerable": false, "difficulty": "unanswerable"}

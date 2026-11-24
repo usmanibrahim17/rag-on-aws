@@ -1,6 +1,6 @@
 import pytest
 
-from app.common.config import ConfigError, is_ingestible_key, load_settings
+from app.common.config import ConfigError, collection_for_key, is_ingestible_key, load_settings
 
 VALID = {
     "VECTOR_BUCKET_NAME": "vb",
@@ -104,10 +104,26 @@ def test_invalid_chunk_settings_are_rejected(extra):
         ("docs/sub/b.TXT", True),
         ("docs/SOURCE.md", False),
         ("docs/sub/source.md", False),
-        ("docs/a.pdf", False),
+        ("docs/a.pdf", True),
+        ("docs/Sub/Manual.PDF", True),
+        ("docs/a.docx", False),
         ("other/a.md", False),
         ("a.md", False),
     ],
 )
 def test_is_ingestible_key(key, expected):
     assert is_ingestible_key(key) is expected
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("docs/path-params.md", "fastapi"),  # directly under docs/: the default collection
+        ("docs/business/faq.md", "business"),
+        ("docs/Business/Returns.PDF", "business"),
+        ("docs/business/deeper/x.md", "business"),  # only the first folder counts
+        ("other/business/faq.md", "fastapi"),
+    ],
+)
+def test_collection_for_key(key, expected):
+    assert collection_for_key(key) == expected

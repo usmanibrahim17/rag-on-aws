@@ -42,6 +42,14 @@ a:focus-visible, button:focus-visible { outline: 3px solid #f59e0b; outline-offs
 .examples button:hover { background: var(--accent); color: var(--accent-fg); }
 .examples button.offtopic { border-color: var(--warn); color: var(--warn); }
 .examples button.offtopic:hover { background: var(--warn); color: var(--bg); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 14px; border-bottom: 2px solid var(--border); }
+.tabs button {
+  font: inherit; cursor: pointer; padding: 10px 16px; border: 0; background: transparent; color: var(--muted);
+  border-bottom: 3px solid transparent; margin-bottom: -2px; font-weight: 600;
+}
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--fg); }
+.tab-panel[hidden] { display: none; }
 .hint, .caption { color: var(--muted); font-size: .92rem; }
 .diagram { width: 100%; height: auto; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
 .diagram .node rect { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }

@@ -413,7 +413,7 @@ def test_summary_text_lists_skipped_ids_and_errors():
 # --- end to end (HTTP patched) --------------------------------------------------------------
 
 
-def fake_post(url, question, timeout):
+def fake_post(url, question, timeout, collection=None):
     return 200, API_BODY, 50
 
 
@@ -470,3 +470,68 @@ def test_infinite_distance_is_stored_as_null():
         "a": [None, 1.0],
         "b": {"c": None},
     }
+
+
+# --- business collection --------------------------------------------------------------------
+
+
+def test_business_question_set_is_valid_and_points_at_real_files():
+    questions = ev.load_questions(REPO / "evals" / "questions_business.jsonl")
+    answerable = [q for q in questions if q["answerable"]]
+    assert len(questions) == 10 and len(answerable) == 8
+    for q in answerable:
+        for source in q["expected_sources"]:
+            assert source.startswith("docs/business/")
+            assert (REPO / "sample-docs" / source.removeprefix("docs/")).is_file(), source
+    # at least one question has to be answered from a PDF
+    assert any(s.endswith(".pdf") for q in answerable for s in q["expected_sources"])
+    assert {q["difficulty"] for q in questions} == {
+        "direct",
+        "understanding",
+        "multi",
+        "unanswerable",
+    }
+
+
+class _FakeHttpResponse:
+    status = 200
+
+    def read(self):
+        return b'{"answer": "ok", "sources": []}'
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.mark.parametrize(("collection", "expected"), [("business", "business"), (None, None)])
+def test_collection_is_sent_in_the_request_only_when_set(collection, expected):
+    with patch.object(ev.urllib.request, "urlopen", return_value=_FakeHttpResponse()) as urlopen:
+        ev.post_question("http://x/ask", "Q?", 5, collection)
+    sent = json.loads(urlopen.call_args.args[0].data)
+    assert sent.get("collection") == expected and sent["question"] == "Q?"
+    assert ("collection" in sent) is (collection is not None)
+
+
+def test_main_passes_the_collection_to_every_request_and_records_it(tmp_path):
+    calls = []
+
+    def recording_post(url, question, timeout, collection=None):
+        calls.append(collection)
+        return 200, API_BODY, 50
+
+    qfile = tmp_path / "q.jsonl"
+    qfile.write_text(json.dumps({**Q, "id": "q1"}))
+    argv = [
+        "--url", "http://x/ask", "--questions", str(qfile), "--pause", "0",
+        "--collection", "business",
+        "--results-dir", str(tmp_path / "results"), "--results-md", str(tmp_path / "RESULTS.md"),
+    ]  # fmt: skip
+    with patch.object(ev, "post_question", side_effect=recording_post):
+        assert ev.main(argv) == 0
+
+    assert calls == ["business"]
+    row = (tmp_path / "RESULTS.md").read_text().splitlines()[-1]
+    assert row.startswith("| ") and "| business |" in row

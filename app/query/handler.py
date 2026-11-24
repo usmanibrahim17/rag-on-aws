@@ -6,16 +6,18 @@ If nothing is close enough, we answer "I don't know" without calling the LLM.
 
 import base64
 import json
+import re
 import time
 
 from botocore.exceptions import ClientError
 
 from app.common import aws_clients, providers
-from app.common.config import ConfigError, QuerySettings, load_query_settings
+from app.common.config import COLLECTION_RE, ConfigError, QuerySettings, load_query_settings
 from app.common.logs import log_json
 from app.common.providers import GenerationBlockedError, ProviderThrottledError
 
 MAX_QUESTION_CHARS = 500
+COLLECTION_PATTERN = re.compile(rf"{COLLECTION_RE}\Z")
 IDK_ANSWER = "I don't know based on the provided documents."
 BLOCKED_ANSWER = "I couldn't generate an answer for this question. Please try rephrasing it."
 
@@ -39,9 +41,10 @@ def handler(event, context):
     log = {"request_id": request_id, "question_chars": None}
     try:
         settings = load_query_settings()
-        question = _parse_question(event)
+        question, collection = _parse_request(event)
         log["question_chars"] = len(question)
-        body, log_fields = _answer(question, settings)
+        log["collection"] = collection
+        body, log_fields = _answer(question, collection, settings)
         status = 200
     except BadRequest as exc:
         status, body, log_fields = 400, {"error": str(exc)}, {"outcome": "bad_request"}
@@ -85,7 +88,8 @@ def _response(status: int, body: dict) -> dict:
     }
 
 
-def _parse_question(event: dict) -> str:
+def _parse_request(event: dict) -> tuple[str, str | None]:
+    """Validate the JSON body. Returns (question, optional collection to restrict retrieval to)."""
     raw = event.get("body")
     if raw and event.get("isBase64Encoded"):
         raw = base64.b64decode(raw).decode("utf-8", errors="replace")
@@ -102,13 +106,19 @@ def _parse_question(event: dict) -> str:
     question = question.strip()
     if len(question) > MAX_QUESTION_CHARS:
         raise BadRequest(f'"question" must be at most {MAX_QUESTION_CHARS} characters.')
-    return question
+
+    collection = payload.get("collection")
+    if collection is not None and (
+        not isinstance(collection, str) or not COLLECTION_PATTERN.match(collection)
+    ):
+        raise BadRequest('"collection" must be a short lowercase name like "business".')
+    return question, collection
 
 
-def _answer(question: str, settings: QuerySettings) -> tuple[dict, dict]:
+def _answer(question: str, collection: str | None, settings: QuerySettings) -> tuple[dict, dict]:
     vector, embed_tokens = providers.get_embedder(settings).embed_query(question)
     hits = aws_clients.query_vectors(
-        settings.vector_bucket, settings.index_name, vector, settings.top_k
+        settings.vector_bucket, settings.index_name, vector, settings.top_k, collection
     )
     # Sort defensively: the "best" hit is the one with the smallest cosine distance.
     hits = sorted(hits, key=lambda h: h["distance"])

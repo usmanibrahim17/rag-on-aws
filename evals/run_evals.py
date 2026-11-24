@@ -40,10 +40,11 @@ THRESHOLDS = [round(0.30 + 0.025 * i, 3) for i in range(13)]  # 0.300 ... 0.600
 DIFFICULTIES = ("direct", "understanding", "multi", "unanswerable")
 
 RESULTS_HEADER = (
-    "| Date | Embedding model | Generation model | Chunk size/overlap | top_k | Threshold "
+    "| Date | Collection | Embedding model | Generation model | Chunk size/overlap | top_k "
+    "| Threshold "
     "| Questions (ans/unans) | hit@1 | hit@3 | hit@5 | MRR | Correct refusals | Wrong refusals "
     "| p50 ms | p95 ms | Avg in/out tokens | Notes |\n"
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
 )
 
 
@@ -104,11 +105,15 @@ def split_skipped(questions: list[dict], skip_sources: set[str]) -> tuple[list[d
 # --- Calling the API ------------------------------------------------------------------------
 
 
-def post_question(url: str, question: str, timeout: float) -> tuple[int, dict | None, int]:
+def post_question(
+    url: str, question: str, timeout: float, collection: str | None = None
+) -> tuple[int, dict | None, int]:
     """POST one question. Returns (HTTP status or 0 on network failure, parsed JSON or None, ms)."""
     request = urllib.request.Request(
         url,
-        data=json.dumps({"question": question}).encode(),
+        data=json.dumps(
+            {"question": question, **({"collection": collection} if collection else {})}
+        ).encode(),
         headers={"content-type": "application/json"},
         method="POST",
     )
@@ -177,12 +182,12 @@ def build_record(q: dict, status: int, body: dict | None, client_ms: int, attemp
     }
 
 
-def run_question(url, q, timeout, retries, retry_pause, sleep=time.sleep) -> dict:
+def run_question(url, q, timeout, retries, retry_pause, sleep=time.sleep, collection=None) -> dict:
     """Ask one question, retrying transient failures (network, 429, 503)."""
     attempts = 0
     while True:
         attempts += 1
-        status, body, client_ms = post_question(url, q["question"], timeout)
+        status, body, client_ms = post_question(url, q["question"], timeout, collection)
         transient = status in (0, 429, 503)
         if not transient or attempts > retries:
             return build_record(q, status, body, client_ms, attempts)
@@ -423,6 +428,7 @@ def markdown_row(records, summary, config, skipped_ids, skip_sources) -> str:
         notes.append(f"{len(summary['errors'])} request error(s)")
     cells = [
         date.today().isoformat(),
+        config.get("collection") or "all",
         config["embedding_model"],
         ", ".join(models) or "n/a",
         f"{config['chunk_size']}/{config['chunk_overlap']}",
@@ -463,6 +469,10 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Run RAG evals against the live /ask endpoint.")
     p.add_argument("--url", required=True, help="ask_url from terraform output (…/ask)")
     p.add_argument("--questions", type=Path, default=ROOT / "questions.jsonl")
+    p.add_argument(
+        "--collection",
+        help="restrict retrieval to this collection (e.g. fastapi, business); default: all",
+    )
     p.add_argument("--pause", type=float, default=3.0, help="seconds between questions")
     p.add_argument("--timeout", type=float, default=60.0, help="per-request timeout (s)")
     p.add_argument("--retries", type=int, default=2, help="retries on 429/503/network errors")
@@ -512,15 +522,26 @@ def main(argv=None) -> int:
         "chunk_overlap": args.chunk_overlap,
         "top_k": args.top_k,
         "threshold": args.threshold,
+        "collection": args.collection,
     }
-    print(f"Running {len(questions)} question(s) against {args.url} (pause {args.pause}s)")
+    print(
+        f"Running {len(questions)} question(s) against {args.url} "
+        f"(pause {args.pause}s, collection: {args.collection or 'all'})"
+    )
     if skipped_ids:
         print(f"Skipping {len(skipped_ids)} by --skip-sources: {', '.join(skipped_ids)}")
 
     records = []
     try:
         for i, q in enumerate(questions, start=1):
-            record = run_question(args.url, q, args.timeout, args.retries, args.retry_pause)
+            record = run_question(
+                args.url,
+                q,
+                args.timeout,
+                args.retries,
+                args.retry_pause,
+                collection=args.collection,
+            )
             records.append(record)
             detail = (
                 f"top {_num(record['top_distance'], 3)} refusal={record['refusal']} "

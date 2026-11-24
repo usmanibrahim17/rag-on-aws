@@ -2,3 +2,5 @@ boto3==1.43.118
 botocore[crt]==1.43.118
 pytest==9.1.1
 ruff==0.17.2
+-r requirements-lambda.txt
+fpdf2==2.9.0  # only to generate the demo PDFs (scripts/make_business_pdfs.py)

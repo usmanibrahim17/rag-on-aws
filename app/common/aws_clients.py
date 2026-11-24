@@ -56,9 +56,8 @@ def _batches(items: list, size: int):
 # --- S3 -------------------------------------------------------------------------------------
 
 
-def read_text_object(bucket: str, key: str) -> str:
-    body = get_s3().get_object(Bucket=bucket, Key=key)["Body"].read()
-    return body.decode("utf-8-sig")  # -sig drops a BOM if the file has one
+def read_object_bytes(bucket: str, key: str) -> bytes:
+    return get_s3().get_object(Bucket=bucket, Key=key)["Body"].read()
 
 
 # --- Bedrock embeddings ---------------------------------------------------------------------
@@ -108,11 +107,17 @@ def put_vectors(bucket: str, index: str, vectors: list[dict]) -> int:
     return calls
 
 
-def query_vectors(bucket: str, index: str, vector: list[float], top_k: int) -> list[dict]:
+def query_vectors(
+    bucket: str, index: str, vector: list[float], top_k: int, collection: str | None = None
+) -> list[dict]:
     """Nearest-neighbour search. Returns [{"key", "distance", "metadata"}], best (smallest) first.
 
-    returnMetadata=True needs s3vectors:GetVectors in addition to QueryVectors (see IAM).
+    returnMetadata=True (and any metadata filter) needs s3vectors:GetVectors in addition to
+    QueryVectors (see IAM). `collection` restricts the search to one collection's chunks.
     """
+    params = {}
+    if collection:
+        params["filter"] = {"collection": {"$eq": collection}}
     response = get_s3vectors().query_vectors(
         vectorBucketName=bucket,
         indexName=index,
@@ -120,6 +125,7 @@ def query_vectors(bucket: str, index: str, vector: list[float], top_k: int) -> l
         topK=top_k,
         returnMetadata=True,
         returnDistance=True,
+        **params,
     )
     return response.get("vectors", [])
 

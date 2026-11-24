@@ -9,18 +9,39 @@
 </head>
 <body>
   <header class="hero">
-    <h1>Ask the FastAPI docs</h1>
+    <h1>Ask the docs</h1>
     <p class="lead">A production-style RAG system on AWS. Ask a question and get an answer
-      that cites the documentation it came from, or an honest "I don't know".</p>
-    <h2 class="visually-hidden">Try an example</h2>
-    <ul class="examples" aria-label="Example questions">
-      <li><button type="button" data-q="How do I make a POST endpoint answer with 201 instead of the usual 200?">Change the response status code</button></li>
-      <li><button type="button" data-q="How can I send a confirmation email after replying, without making the caller wait for it?">Send an email in the background</button></li>
-      <li><button type="button" data-q="My JavaScript frontend on a different domain gets blocked when it calls my API. What do I configure?">Fix a CORS error</button></li>
-      <li><button type="button" class="offtopic" data-q="What is the capital of France?">Off-topic question (should be refused)</button></li>
-    </ul>
-    <p class="hint">Or use the chat bubble in the bottom-right corner. Answers come from 40 pages of
-      the FastAPI tutorial; anything else should be refused.</p>
+      that cites the documents it came from, or an honest "I don't know". One system, two
+      separate knowledge bases:</p>
+
+    <div class="tabs" role="tablist" aria-label="Knowledge base">
+      <button type="button" role="tab" id="tab-fastapi" aria-controls="panel-fastapi" aria-selected="true"
+        data-collection="fastapi" data-title="Ask the FastAPI docs"
+        data-source-url-template="https://fastapi.tiangolo.com/tutorial/{slug}/">Developer docs</button>
+      <button type="button" role="tab" id="tab-business" aria-controls="panel-business" aria-selected="false" tabindex="-1"
+        data-collection="business" data-title="Glimmerwick support"
+        data-source-url-template="https://github.com/usmanibrahim17/rag-on-aws/blob/main/sample-docs/{path}">Company support assistant</button>
+    </div>
+
+    <div id="panel-fastapi" class="tab-panel" role="tabpanel" aria-labelledby="tab-fastapi">
+      <p class="hint">40 pages of the FastAPI tutorial. Try an example, or open the chat bubble in the
+        bottom-right corner and ask anything.</p>
+      <ul class="examples" aria-label="Example questions for the developer docs">
+        <li><button type="button" data-q="How do I make a POST endpoint answer with 201 instead of the usual 200?">Change the response status code</button></li>
+        <li><button type="button" data-q="My JavaScript frontend on a different domain gets blocked when it calls my API. What do I configure?">Fix a CORS error</button></li>
+        <li><button type="button" class="offtopic" data-q="What is the capital of France?">Off-topic question (should be refused)</button></li>
+      </ul>
+    </div>
+
+    <div id="panel-business" class="tab-panel" role="tabpanel" aria-labelledby="tab-business" hidden>
+      <p class="hint">Support articles, policies (two of them PDFs) and a staff handbook of
+        <em>Glimmerwick Gadgets</em>, a fictional company invented for this demo.</p>
+      <ul class="examples" aria-label="Example questions for the company assistant">
+        <li><button type="button" data-q="If I change my mind about something I bought, how long do I have to send it back for my money?">Returns window (from a PDF)</button></li>
+        <li><button type="button" data-q="How many paid vacation days does a full-time employee get each year, and can unused ones be kept?">Staff vacation days (from a PDF)</button></li>
+        <li><button type="button" class="offtopic" data-q="Can you gift-wrap my order and include a handwritten card?">Not covered (should be refused)</button></li>
+      </ul>
+    </div>
   </header>
 
   <main>
@@ -93,7 +114,7 @@
       <a href="https://fastapi.tiangolo.com/tutorial/">FastAPI tutorial</a> (MIT, &copy; Sebasti&aacute;n Ram&iacute;rez).</p>
   </footer>
 
-  <script src="widget.js" data-api-url="__API_URL__" data-source-base-url="https://fastapi.tiangolo.com/tutorial/" data-title="Ask the FastAPI docs"></script>
+  <script src="widget.js" data-api-url="__API_URL__" data-collection="fastapi" data-source-url-template="https://fastapi.tiangolo.com/tutorial/{slug}/" data-title="Ask the FastAPI docs"></script>
   <script src="demo.js"></script>
 </body>
 </html>

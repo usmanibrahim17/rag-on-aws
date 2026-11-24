@@ -13,6 +13,7 @@ from unittest.mock import patch
 import pytest
 
 from app.ingest.handler import handler
+from tests.pdfs import make_pdf
 
 BUCKET = "docs-bucket"
 
@@ -59,7 +60,8 @@ class FakeS3:
         self.objects = {}
 
     def get_object(self, Bucket, Key):
-        return {"Body": io.BytesIO(self.objects[(Bucket, Key)].encode())}
+        data = self.objects[(Bucket, Key)]
+        return {"Body": io.BytesIO(data if isinstance(data, bytes) else data.encode())}
 
 
 @pytest.fixture
@@ -109,6 +111,7 @@ def test_create_event_writes_vectors_with_deterministic_keys_and_metadata(aws):
     first, second = (aws.vectors.store[f"docs/guide.md#{i}"] for i in (0, 1))
     assert first["metadata"] == {
         "source_key": "docs/guide.md",
+        "collection": "fastapi",
         "heading": "Guide",
         "chunk_index": 0,
         "chunk_text": "Intro text.",
@@ -202,6 +205,38 @@ def test_logs_are_structured_json_with_request_id_and_latency(aws, caplog):
     assert entry["status"] == "ingested" and entry["chunks"] == 1
     assert entry["embedding_tokens"] > 0
     assert isinstance(entry["latency_ms"], int)
+
+
+# --- collections and PDFs ---------------------------------------------------------------------
+
+
+def test_subfolder_decides_the_collection_stored_in_metadata(aws):
+    upload(aws, "docs/business/faq.md", "# FAQ\n\nWe ship worldwide.")
+    upload(aws, "docs/plain.md", "# Plain\n\nHello there.")
+
+    assert aws.vectors.store["docs/business/faq.md#0"]["metadata"]["collection"] == "business"
+    assert aws.vectors.store["docs/plain.md#0"]["metadata"]["collection"] == "fastapi"
+
+
+def test_pdf_is_extracted_chunked_and_cited_by_page(aws):
+    pdf = make_pdf(["Warranty lasts two years.", "Claims need a receipt."])
+
+    result = upload(aws, "docs/business/warranty.pdf", pdf)
+
+    assert result == {"processed": 1}
+    stored = [aws.vectors.store[k] for k in keys_for(aws, "docs/business/warranty.pdf")]
+    assert [v["metadata"]["heading"] for v in stored] == ["Page 1", "Page 2"]
+    assert "Warranty lasts two years." in stored[0]["metadata"]["chunk_text"]
+    assert all(v["metadata"]["collection"] == "business" for v in stored)
+
+
+def test_corrupt_pdf_is_skipped_without_failing_or_retrying(aws):
+    aws.s3.objects[(BUCKET, "docs/business/broken.pdf")] = b"definitely not a pdf"
+
+    result = run_sqs(sqs_message("m1", "ObjectCreated:Put", "docs/business/broken.pdf"))
+
+    assert result["batchItemFailures"] == []  # acknowledged: retrying cannot fix the file
+    assert keys_for(aws, "docs/business/broken.pdf") == []
 
 
 # --- SQS-wrapped S3 events (S3 -> SQS -> Lambda) --------------------------------------------

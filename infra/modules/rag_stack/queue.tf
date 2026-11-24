@@ -82,6 +82,13 @@ resource "aws_s3_bucket_notification" "docs" {
     filter_suffix = ".txt"
   }
 
+  queue {
+    queue_arn     = aws_sqs_queue.ingest.arn
+    events        = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
+    filter_prefix = "docs/"
+    filter_suffix = ".pdf"
+  }
+
   # S3 checks it may send to the queue when saving the notification, so the policy must exist first.
   depends_on = [aws_sqs_queue_policy.ingest]
 }

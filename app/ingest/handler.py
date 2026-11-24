@@ -8,9 +8,9 @@ import json
 import time
 from urllib.parse import unquote_plus
 
-from app.common import aws_clients, providers
+from app.common import aws_clients, documents, providers
 from app.common.chunking import chunk_markdown
-from app.common.config import Settings, is_ingestible_key, load_settings
+from app.common.config import Settings, collection_for_key, is_ingestible_key, load_settings
 from app.common.logs import log_json
 
 # Filterable metadata is capped at 2 KB per vector in S3 Vectors; keep the heading well below it.
@@ -140,8 +140,13 @@ def _process_record(record: dict, settings: Settings) -> dict:
 
 
 def _ingest_object(bucket: str, key: str, settings: Settings) -> dict:
-    text = aws_clients.read_text_object(bucket, key)
+    try:
+        text = documents.extract_text(key, aws_clients.read_object_bytes(bucket, key))
+    except documents.UnreadableDocument as exc:
+        # Retrying cannot fix an encrypted/corrupt/oversized file: log it and move on.
+        return {"status": "skipped", "reason": str(exc)}
     chunks = chunk_markdown(text, settings.chunk_size, settings.chunk_overlap)
+    collection = collection_for_key(key)
 
     # One batched call per up-to-100 chunks with Gemini; parallel per-chunk calls with Titan.
     vectors_data, tokens = providers.get_embedder(settings).embed_documents(
@@ -153,6 +158,7 @@ def _ingest_object(bucket: str, key: str, settings: Settings) -> dict:
             "data": {"float32": vector},
             "metadata": {
                 "source_key": key,
+                "collection": collection,  # filterable: /ask can restrict retrieval to it
                 "heading": chunk.heading[:MAX_HEADING_CHARS] or "(intro)",
                 "chunk_index": chunk.index,
                 # Marked non-filterable on the index; returned with query results for the prompt.
@@ -172,6 +178,7 @@ def _ingest_object(bucket: str, key: str, settings: Settings) -> dict:
 
     return {
         "status": "ingested",
+        "collection": collection,
         "chunks": len(chunks),
         "embedding_tokens": tokens,
         "stale_vectors_deleted": len(stale),
