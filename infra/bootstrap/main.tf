@@ -125,8 +125,9 @@ resource "aws_iam_openid_connect_provider" "github" {
   # No thumbprint_list: AWS validates GitHub's certificate chain with its own trusted CAs.
 }
 
-# Only workflows running on the main branch of exactly this repository may assume the role.
-# (A pull request or another branch has a different "sub" claim and is rejected.)
+# Only workflows running on the main branch of exactly this repository (github_repo) may assume
+# the role. A pull request or another branch has a different "sub" claim and is rejected.
+# The subject uses GitHub's immutable form with numeric IDs (see var.github_sub_prefix).
 data "aws_iam_policy_document" "deploy_trust" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -145,7 +146,7 @@ data "aws_iam_policy_document" "deploy_trust" {
     condition {
       test     = "StringEquals"
       variable = "${local.github_oidc_url}:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+      values   = ["${var.github_sub_prefix}:ref:refs/heads/main"]
     }
   }
 }
