@@ -10,6 +10,12 @@ variable "monthly_budget_usd" {
   default     = 20
 }
 
+variable "cors_allowed_origins" {
+  description = "Extra browser origins allowed to call the API besides the CloudFront site (default: local testing on port 8080)."
+  type        = list(string)
+  default     = ["http://localhost:8080"]
+}
+
 variable "distance_threshold" {
   description = "Refuse (\"I don't know\") without calling the LLM when the best cosine distance is above this. Tuned from evals/RESULTS.md: answerable questions topped out at 0.357, off-topic ones at 0.47-0.50."
   type        = number
@@ -61,4 +67,5 @@ variable "generation_model_id" {
 variable "budget_alert_emails" {
   description = "Email addresses that receive budget alerts."
   type        = list(string)
+  sensitive   = true # keeps the address out of plan output and public CI logs
 }

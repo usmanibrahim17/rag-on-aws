@@ -41,9 +41,10 @@ resource "aws_cloudwatch_log_group" "query" {
 }
 
 resource "aws_iam_role" "query" {
-  name               = "${var.name_prefix}-query"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-  tags               = var.tags
+  name                 = "${var.name_prefix}-query"
+  assume_role_policy   = data.aws_iam_policy_document.lambda_assume.json
+  permissions_boundary = var.permissions_boundary_arn # see infra/bootstrap
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "query" {
@@ -150,9 +151,11 @@ resource "aws_apigatewayv2_api" "ask" {
   protocol_type = "HTTP"
   tags          = var.tags
 
-  # Open to any origin for now; restricted to the CloudFront domain in M5.
+  # Only the demo site (CloudFront) plus the extra origins in var.cors_allowed_origins (e.g.
+  # http://localhost:8080 for local testing) may call the API from a browser. This is browser
+  # enforcement only; direct calls (curl) are limited by throttling, not by CORS.
   cors_configuration {
-    allow_origins = ["*"]
+    allow_origins = concat(["https://${aws_cloudfront_distribution.web.domain_name}"], var.cors_allowed_origins)
     allow_methods = ["POST", "OPTIONS"]
     allow_headers = ["content-type"]
     max_age       = 3600
@@ -173,11 +176,34 @@ resource "aws_apigatewayv2_route" "ask" {
   target    = "integrations/${aws_apigatewayv2_integration.query.id}"
 }
 
+# Access log for the API. Deliberately no client IP or user agent: request id, route, status
+# and latencies are enough to debug and to correlate with the Lambda logs.
+resource "aws_cloudwatch_log_group" "api_access" {
+  name              = "/aws/apigateway/${var.name_prefix}-api"
+  retention_in_days = 14
+  tags              = var.tags
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.ask.id
   name        = "$default"
   auto_deploy = true
   tags        = var.tags
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_access.arn
+    format = jsonencode({
+      requestId          = "$context.requestId"
+      requestTime        = "$context.requestTime"
+      httpMethod         = "$context.httpMethod"
+      routeKey           = "$context.routeKey"
+      status             = "$context.status"
+      responseLatency    = "$context.responseLatency"
+      integrationLatency = "$context.integrationLatency"
+      integrationStatus  = "$context.integrationStatus"
+      errorMessage       = "$context.error.message"
+    })
+  }
 
   # Throttling protects the Bedrock bill from abuse of the public endpoint.
   default_route_settings {

@@ -33,6 +33,11 @@ jobs:
         run: |
           terraform init -backend=false
           terraform validate
+      - name: validate bootstrap
+        working-directory: infra/bootstrap
+        run: |
+          terraform init -backend=false
+          terraform validate
 
   python:
     runs-on: ubuntu-latest
@@ -50,3 +55,59 @@ jobs:
         run: ruff format --check .
       - name: pytest
         run: pytest
+
+  # Continuous deployment: only on a push to main, only after both check jobs passed.
+  # GitHub issues a short-lived OIDC token; AWS exchanges it for temporary credentials of the
+  # deploy role, whose trust policy accepts only this repo's main branch. No AWS keys are stored.
+  deploy:
+    needs: [terraform, python]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy # one deploy at a time; never cancel one that is mid-apply
+      cancel-in-progress: false
+    permissions:
+      id-token: write # lets the job request the OIDC token
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build lambda zips
+        run: bash scripts/build_lambdas.sh
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          # the AWS account ID is masked in the (public) logs by default
+      - name: terraform init
+        working-directory: infra/envs/demo
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+      - name: terraform plan
+        working-directory: infra/envs/demo
+        env:
+          # The budget email is a secret so it is masked in the public logs.
+          TF_VAR_budget_alert_emails: ${{ secrets.BUDGET_ALERT_EMAILS }}
+          TF_VAR_gemini_generation_model: ${{ vars.GEMINI_GENERATION_MODEL }}
+        run: terraform plan -input=false -no-color -out=tfplan
+      # Safety net: automatic deploys may add and change resources, but never delete or replace
+      # them. A deliberate destroy needs "[allow-destroy]" in the commit message.
+      - name: refuse unexpected destroys
+        working-directory: infra/envs/demo
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          deletes=$(terraform show -json tfplan | jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length')
+          echo "resources the plan would delete or replace: $deletes"
+          if [ "$deletes" -gt 0 ] && ! printf '%s' "$COMMIT_MESSAGE" | grep -qF '[allow-destroy]'; then
+            echo "::error::The plan deletes or replaces resources. Review it, then re-run with [allow-destroy] in the commit message."
+            exit 1
+          fi
+      - name: terraform apply
+        working-directory: infra/envs/demo
+        env:
+          TF_VAR_budget_alert_emails: ${{ secrets.BUDGET_ALERT_EMAILS }}
+          TF_VAR_gemini_generation_model: ${{ vars.GEMINI_GENERATION_MODEL }}
+        run: terraform apply -input=false -no-color tfplan

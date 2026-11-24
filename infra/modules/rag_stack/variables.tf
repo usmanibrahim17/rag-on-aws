@@ -77,6 +77,28 @@ variable "chunk_overlap" {
   }
 }
 
+variable "permissions_boundary_arn" {
+  description = "ARN of a permissions boundary policy attached to the ingest and query roles (null = none). The CD deploy role can only create stack roles that carry it."
+  type        = string
+  default     = null
+}
+
+variable "web_dir" {
+  description = "Directory with the demo site files (flat, text files only). __API_URL__ inside them is replaced with the /ask URL."
+  type        = string
+}
+
+variable "cors_allowed_origins" {
+  description = "Extra browser origins allowed to call the API, in addition to the CloudFront site. Wildcards are not allowed."
+  type        = list(string)
+  default     = ["http://localhost:8080"]
+
+  validation {
+    condition     = !contains(var.cors_allowed_origins, "*")
+    error_message = "cors_allowed_origins must list explicit origins, not \"*\"."
+  }
+}
+
 variable "ingest_max_concurrency" {
   description = "Max ingest Lambdas running in parallel (SQS event source mapping). Lower = gentler on the AI provider's rate limit. AWS requires >= 2."
   type        = number

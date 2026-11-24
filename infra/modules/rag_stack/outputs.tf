@@ -33,6 +33,21 @@ output "ingest_function_name" {
   value       = aws_lambda_function.ingest.function_name
 }
 
+output "web_url" {
+  description = "HTTPS URL of the demo site (CloudFront)."
+  value       = "https://${aws_cloudfront_distribution.web.domain_name}"
+}
+
+output "web_bucket_name" {
+  description = "Private S3 bucket holding the demo site files."
+  value       = aws_s3_bucket.web.bucket
+}
+
+output "web_distribution_id" {
+  description = "CloudFront distribution ID (for manual invalidations)."
+  value       = aws_cloudfront_distribution.web.id
+}
+
 output "ingest_queue_url" {
   description = "URL of the SQS queue that buffers S3 events for the ingest Lambda."
   value       = aws_sqs_queue.ingest.url

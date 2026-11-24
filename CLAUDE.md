@@ -1,8 +1,8 @@
 # rag-on-aws — project brief for Claude Code
 
-STATUS: M3.5 deployed (SQS pacing works, 37/40 docs indexed, last 3 retrying). Provider is Gemini (Bedrock quota is 0). M3 working end to end. Now on M4 (evals).
+STATUS: M4 done (hit@5 100%, MRR 0.984, distance threshold tuned 0.6 -> 0.4, see evals/RESULTS.md). Provider is Gemini (Bedrock quota is 0). All 40 docs indexed; ingest paced by SQS. Now on M5 (public demo, widget, CloudFront, CORS/logging hardening, remote state, GitHub OIDC CD).
 
-FINDING (M3, to act on in M4): with Gemini embeddings, a relevant question had top distance 0.24 while a totally unrelated one ("What is the capital of France?") had 0.47. The default 0.6 distance threshold therefore never triggers, and the LLM did the refusing instead. The threshold must be tuned from eval data (see the sweep in `evals/run_evals.py`), not guessed.
+FINDING (M4): with Gemini embeddings the default 0.6 distance threshold never fired (off-topic questions have top distance 0.47-0.50, answerable ones top out at 0.357), so the LLM did all the refusing. At 0.4 the off-topic questions are refused before the LLM; the near-miss questions (0.34-0.38) overlap the answerable range and still rely on the model.
 
 Read this file fully before any work. Follow the milestone order. Do one milestone per session unless told otherwise.
 

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG on AWS: ask the FastAPI docs</title>
+  <meta name="description" content="A serverless retrieval-augmented generation demo on AWS: S3, S3 Vectors, Lambda and API Gateway, with cited answers and measured quality.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <h1>Ask the FastAPI docs</h1>
+    <p class="lead">A production-style RAG system on AWS. Ask a question and get an answer
+      that cites the documentation it came from, or an honest "I don't know".</p>
+    <h2 class="visually-hidden">Try an example</h2>
+    <ul class="examples" aria-label="Example questions">
+      <li><button type="button" data-q="How do I make a POST endpoint answer with 201 instead of the usual 200?">Change the response status code</button></li>
+      <li><button type="button" data-q="How can I send a confirmation email after replying, without making the caller wait for it?">Send an email in the background</button></li>
+      <li><button type="button" data-q="My JavaScript frontend on a different domain gets blocked when it calls my API. What do I configure?">Fix a CORS error</button></li>
+      <li><button type="button" class="offtopic" data-q="What is the capital of France?">Off-topic question (should be refused)</button></li>
+    </ul>
+    <p class="hint">Or use the chat bubble in the bottom-right corner. Answers come from 40 pages of
+      the FastAPI tutorial; anything else should be refused.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="what">
+      <h2 id="what">What it does</h2>
+      <p>Markdown documents are uploaded to S3, split into heading-aware chunks, embedded and stored
+        in Amazon S3 Vectors. A question is embedded the same way, the closest chunks are retrieved,
+        and a language model answers <em>only</em> from them, citing sources as [1], [2]. If nothing
+        retrieved is close enough, the system refuses before calling the model at all.</p>
+      <p>Everything is serverless and defined in Terraform, so idle cost is close to storage only.
+        The AI provider is a single setting (Gemini today, Amazon Bedrock when quota allows).</p>
+    </section>
+
+    <section aria-labelledby="arch">
+      <h2 id="arch">Architecture</h2>
+      <svg class="diagram" viewBox="0 0 760 330" role="img" aria-labelledby="arch-title arch-desc">
+        <title id="arch-title">Architecture diagram</title>
+        <desc id="arch-desc">Documents flow from S3 through SQS to an ingest Lambda that embeds chunks into S3 Vectors. A question flows from the browser through CloudFront and API Gateway to a query Lambda that retrieves from S3 Vectors and calls the model.</desc>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="arrowhead"/></marker></defs>
+        <text x="10" y="22" class="lane">Ingest</text>
+        <g class="node"><rect x="10" y="36" width="120" height="48" rx="8"/><text x="70" y="65">S3 docs/</text></g>
+        <g class="node"><rect x="170" y="36" width="120" height="48" rx="8"/><text x="230" y="65">SQS + DLQ</text></g>
+        <g class="node"><rect x="330" y="36" width="140" height="48" rx="8"/><text x="400" y="65">Ingest Lambda</text></g>
+        <g class="node store"><rect x="590" y="36" width="160" height="48" rx="8"/><text x="670" y="65">S3 Vectors index</text></g>
+        <g class="node ext"><rect x="330" y="116" width="140" height="40" rx="8"/><text x="400" y="141">Embedding model</text></g>
+        <path class="edge" d="M130 60H168" marker-end="url(#arrow)"/>
+        <path class="edge" d="M290 60H328" marker-end="url(#arrow)"/>
+        <path class="edge" d="M470 60H588" marker-end="url(#arrow)"/>
+        <path class="edge" d="M400 86V114" marker-end="url(#arrow)"/>
+        <text x="10" y="196" class="lane">Query</text>
+        <g class="node"><rect x="10" y="210" width="110" height="48" rx="8"/><text x="65" y="239">Browser</text></g>
+        <g class="node"><rect x="150" y="210" width="110" height="48" rx="8"/><text x="205" y="233">API Gateway</text><text x="205" y="249" class="sub">POST /ask</text></g>
+        <g class="node"><rect x="290" y="210" width="130" height="48" rx="8"/><text x="355" y="239">Query Lambda</text></g>
+        <g class="node store"><rect x="590" y="210" width="160" height="48" rx="8"/><text x="670" y="239">S3 Vectors index</text></g>
+        <g class="node ext"><rect x="450" y="276" width="130" height="40" rx="8"/><text x="515" y="301">Answer model</text></g>
+        <path class="edge" d="M120 234H148" marker-end="url(#arrow)"/>
+        <path class="edge" d="M260 234H288" marker-end="url(#arrow)"/>
+        <path class="edge" d="M420 234H588" marker-end="url(#arrow)"/>
+        <path class="edge" d="M385 260L470 276" marker-end="url(#arrow)"/>
+        <text x="505" y="228" class="sub">top-k chunks</text>
+      </svg>
+      <p class="caption">This page is served privately from S3 through CloudFront. Both Lambdas run
+        with least-privilege IAM, and the AI provider key lives only in SSM Parameter Store.</p>
+    </section>
+
+    <section aria-labelledby="evals">
+      <h2 id="evals">How well does it work?</h2>
+      <p>40 questions written from the docs (32 answerable, 8 not), measured against the live API.
+        The only change between the two runs is the refusal threshold, tuned from the first run.</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="visually-hidden">Evaluation results</caption>
+          <thead>
+            <tr><th scope="col">Run</th><th scope="col">Threshold</th><th scope="col">hit@1</th><th scope="col">hit@5</th><th scope="col">MRR</th><th scope="col">Refused correctly</th><th scope="col">Refused wrongly</th><th scope="col">p50 latency</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Baseline</th><td>0.6</td><td>96.9%</td><td>100%</td><td>0.984</td><td>8/8 (model only)</td><td>0/32</td><td>1.4 s</td></tr>
+            <tr><th scope="row">Tuned</th><td>0.4</td><td>96.9%</td><td>100%</td><td>0.984</td><td>8/8 (3 before the model)</td><td>0/32</td><td>1.2 s</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caption">hit@k: a correct source is among the first k retrieved. MRR: mean reciprocal
+        rank of the first correct source. Details and method:
+        <a href="https://github.com/usmanibrahim17/rag-on-aws/blob/main/evals/RESULTS.md">evals/RESULTS.md</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="https://github.com/usmanibrahim17/rag-on-aws">Source code</a> &middot; Demo content:
+      <a href="https://fastapi.tiangolo.com/tutorial/">FastAPI tutorial</a> (MIT, &copy; Sebasti&aacute;n Ram&iacute;rez).</p>
+  </footer>
+
+  <script src="widget.js" data-api-url="__API_URL__" data-source-base-url="https://fastapi.tiangolo.com/tutorial/" data-title="Ask the FastAPI docs"></script>
+  <script src="demo.js"></script>
+</body>
+</html>

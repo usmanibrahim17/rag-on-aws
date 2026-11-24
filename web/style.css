@@ -1,0 +1,62 @@
+:root {
+  --bg: #ffffff;
+  --fg: #111827;
+  --muted: #4b5563;
+  --accent: #0f766e;
+  --accent-fg: #ffffff;
+  --card: #f3f4f6;
+  --border: #d1d5db;
+  --warn: #92400e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --fg: #e5e7eb;
+    --muted: #9ca3af;
+    --accent: #2dd4bf;
+    --accent-fg: #042f2e;
+    --card: #111a2e;
+    --border: #243049;
+    --warn: #fbbf24;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+.hero, main, footer { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+.hero { padding-top: 48px; padding-bottom: 8px; }
+h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.15; margin: 0 0 12px; }
+h2 { font-size: 1.35rem; margin: 40px 0 8px; }
+.lead { font-size: 1.15rem; color: var(--muted); margin: 0 0 20px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.examples { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.examples button {
+  font: inherit; font-size: .95rem; cursor: pointer; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent);
+}
+.examples button:hover { background: var(--accent); color: var(--accent-fg); }
+.examples button.offtopic { border-color: var(--warn); color: var(--warn); }
+.examples button.offtopic:hover { background: var(--warn); color: var(--bg); }
+.hint, .caption { color: var(--muted); font-size: .92rem; }
+.diagram { width: 100%; height: auto; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+.diagram .node rect { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .node.store rect { stroke-width: 3; }
+.diagram .node.ext rect { stroke-dasharray: 5 3; stroke: var(--muted); }
+.diagram text { fill: var(--fg); font-size: 14px; text-anchor: middle; }
+.diagram .lane { text-anchor: start; font-weight: 700; fill: var(--muted); }
+.diagram .sub { font-size: 11px; fill: var(--muted); }
+.diagram .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.diagram .arrowhead { fill: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+thead th { background: var(--card); }
+footer { padding-top: 24px; padding-bottom: 96px; color: var(--muted); font-size: .9rem; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}

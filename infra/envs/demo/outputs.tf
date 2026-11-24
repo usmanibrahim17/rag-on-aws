@@ -26,6 +26,18 @@ output "query_log_group_name" {
   value = module.rag_stack.query_log_group_name
 }
 
+output "web_url" {
+  value = module.rag_stack.web_url
+}
+
+output "web_bucket_name" {
+  value = module.rag_stack.web_bucket_name
+}
+
+output "web_distribution_id" {
+  value = module.rag_stack.web_distribution_id
+}
+
 output "ingest_queue_url" {
   value = module.rag_stack.ingest_queue_url
 }

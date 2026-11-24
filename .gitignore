@@ -229,3 +229,6 @@ crash.log
 
 # Eval run output (per-question details); RESULTS.md is committed
 evals/results/
+
+# Terraform backend settings contain the account-specific state bucket name
+infra/envs/demo/backend.hcl
