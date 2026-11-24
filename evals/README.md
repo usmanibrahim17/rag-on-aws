@@ -96,8 +96,8 @@ question file and the matching `--collection` flag, so retrieval is restricted t
 
 ```powershell
 $url = terraform -chdir=infra\envs\demo output -raw ask_url
-.\.venv\Scripts\python.exe evalsun_evals.py --url $url --collection fastapi
-.\.venv\Scripts\python.exe evalsun_evals.py --url $url --questions evals\questions_business.jsonl --collection business
+.\.venv\Scripts\python.exe evals\run_evals.py --url $url --collection fastapi
+.\.venv\Scripts\python.exe evals\run_evals.py --url $url --questions evals\questions_business.jsonl --collection business
 ```
 
 `questions_business.jsonl` has 10 questions (8 answerable, one needing two documents, 1 off-topic,
